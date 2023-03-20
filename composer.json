@@ -1,0 +1,59 @@
+{
+	"name": "maximal/gitlab-code-quality",
+	"description": "GitLab Code Quality generator for PHP and JS projects",
+	"keywords": [
+		"GitLab",
+		"code quality",
+		"report",
+		"widget",
+		"generator",
+		"CI",
+		"CD"
+	],
+	"type": "project",
+	"license": "MIT",
+	"authors": [
+		{
+			"name": "maximal",
+			"email": "almaximal@ya.ru"
+		}
+	],
+	"require": {
+		"php": ">=8.0",
+		"ext-json": "*",
+		"ext-mbstring": "*"
+	},
+	"_require-dev_": {
+		"squizlabs/php_codesniffer": "@stable",
+		"phpstan/phpstan": "@stable",
+		"roave/security-advisories": "dev-latest",
+		"vimeo/psalm": "@stable"
+	},
+	"minimum-stability": "stable",
+	"autoload": {
+		"psr-4": {
+			"Maximal\\GitlabCodeQuality\\": "src/"
+		}
+	},
+	"bin": [
+		"bin/gitlab-code-quality"
+	],
+	"extra": {
+		"gitlab-code-quality": {
+			"_comment_": "Default configuration options; see README.md",
+			"php-dir": ".",
+			"js-dir": "resources",
+			"stats": true,
+			"cache": false,
+			"psalm": true,
+			"psalm-config": "psalm.xml",
+			"phpstan": true,
+			"phpstan-config": "phpstan.neon",
+			"phpcs": true,
+			"phpcs-standard": "PSR12",
+			"eslint": true,
+			"eslint-config": ".eslintrc.yml",
+			"node": "node"
+		}
+	}
+}
