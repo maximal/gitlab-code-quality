@@ -11,8 +11,6 @@
  *
  * @since 2023-03-19
  * @date 2023-03-19
- *
- * @noinspection PhpPropertyOnlyWrittenInspection
  */
 
 namespace Maximal\GitlabCodeQuality;
@@ -24,27 +22,31 @@ use Throwable;
  */
 class App
 {
-	private array $argv;
-	private string $binDir;
-
-	private string $currentDir;
+	// Config variables
 	private string $phpDir = '.';
 	private string $jsDir = 'resources';
 	private string $nodeBin = 'node';
 
-	private string $psalmConfig = 'psalm.xml';
-	private string $phpStanConfig = 'phpstan.neon';
-	private string $phpCsStandard = 'PSR12';
-	private string $esLintConfig = '.eslintrc.yml';
+	private string $psalmConfig = self::DEFAULT_PSALM_CONFIG;
+	private string $phpStanConfig = self::DEFAULT_PHPSTAN_CONFIG;
+	private string $phpCsStandard = self::DEFAULT_PHPCS_STANDARD;
+	private string $esLintConfig = self::DEFAULT_ESLINT_CONFIG;
 
 	private bool $printStats = true;
 	private bool $silent = false;
-	private bool $cache = true;
+	private bool $cache = false;
 
 	private bool $runPsalm = true;
 	private bool $runPhpStan = true;
 	private bool $runPhpCs = true;
 	private bool $runEsLint = true;
+
+	// Runtime variables
+	private array $argv;
+	private string $binDir;
+	private string $phpAppDir;
+	private string $jsAppDir;
+	private string $currentDir;
 
 	private bool $hasPsalm = false;
 	private bool $hasPhpStan = false;
@@ -70,15 +72,23 @@ class App
 	private const RESULT_ESLINT_FAILED = 4;
 	private const RESULT_CRITICAL_ISSUES = 5;
 
+	// Default config files
+	private const DEFAULT_PSALM_CONFIG = 'psalm.xml';
+	private const DEFAULT_PHPSTAN_CONFIG = 'phpstan.neon';
+	private const DEFAULT_PHPCS_STANDARD = 'PSR12';
+	private const DEFAULT_ESLINT_CONFIG = '.eslintrc.yml';
+
 	// Project version
-	public const VERSION = '1.0';
+	public const VERSION = '1.1';
 
 
 	public function __construct(array $argv, string $binDir)
 	{
 		$this->argv = $argv;
 		$this->binDir = $binDir;
+		$this->phpAppDir = dirname($binDir, 2);
 		$this->currentDir = getcwd();
+		$this->jsAppDir = $this->currentDir;
 	}
 
 	/**
@@ -111,6 +121,7 @@ class App
 			}
 		}
 		$this->processComposerConfig();
+		$this->processNodeConfig();
 		return null;
 	}
 
@@ -154,6 +165,11 @@ class App
 	{
 		$issues = [];
 
+		if ($this->phpAppDir !== $this->currentDir) {
+			// Change current dir to PHP app dir
+			chdir($this->phpAppDir);
+		}
+
 		$psalm = $this->runPsalm();
 		if ($this->lastErrors !== null) {
 			self::stdErrPrintLine($this->lastErrors);
@@ -178,6 +194,11 @@ class App
 		}
 		array_push($issues, ...$phpCs);
 
+		if ($this->jsAppDir !== $this->phpAppDir) {
+			// Change current dir to JS app dir
+			chdir($this->jsAppDir);
+		}
+
 		$esLint = $this->runEsLint();
 		if ($this->lastErrors !== null) {
 			self::stdErrPrintLine($this->lastErrors);
@@ -185,6 +206,11 @@ class App
 			return self::RESULT_ESLINT_FAILED;
 		}
 		array_push($issues, ...$esLint);
+
+		if (getcwd() !== $this->currentDir) {
+			// Change current dir to the old current dir
+			chdir($this->currentDir);
+		}
 
 		return $this->getStats($issues);
 	}
@@ -196,9 +222,13 @@ class App
 			return [];
 		}
 		self::stdErrPrintLine('Running Psalm...');
+		$config = $this->psalmConfig !== self::DEFAULT_PSALM_CONFIG ?
+			('--config=' . escapeshellarg($this->psalmConfig)) : '';
+		$dir = !in_array($this->phpDir, ['', '.']) ? escapeshellarg($this->phpDir) : '';
 		exec(
 			$this->binPsalm . ($this->cache ? '' : ' --no-cache') .
-			' --memory-limit=-1 --output-format=json',
+			' --memory-limit=-1 --output-format=json ' . $config .
+			' ' . $dir,
 			$output
 		);
 		$text = implode(PHP_EOL, $output);
@@ -235,9 +265,13 @@ class App
 			return [];
 		}
 		self::stdErrPrintLine('Running PhpStan...');
+		$config = $this->phpStanConfig !== self::DEFAULT_PHPSTAN_CONFIG ?
+			('--configuration=' . escapeshellarg($this->phpStanConfig)) : '';
+		$dir = !in_array($this->phpDir, ['', '.']) ? escapeshellarg($this->phpDir) : '';
 		exec(
 			$this->binPhpStan .
-			' analyse --memory-limit=-1 --error-format=json',
+			' analyse --memory-limit=-1 --no-interaction --error-format=json ' .
+			$config . ' ' . $dir,
 			$output
 		);
 		$text = implode(PHP_EOL, $output);
@@ -271,12 +305,13 @@ class App
 		);
 		exec(
 			$this->binPhpCs . ($this->cache ? '' : ' --no-cache') .
-			' --report=json --standard=' . escapeshellarg($this->phpCsStandard),
+			' --report=json --standard=' . escapeshellarg($this->phpCsStandard) .
+			' ' . escapeshellarg($this->phpDir),
 			$output
 		);
 		$text = implode(PHP_EOL, $output);
 		$data = self::getJson($text);
-		if (!is_object($data) || !is_array($data->files)) {
+		if (!is_object($data) || !is_object($data->files)) {
 			$this->lastErrors = $text;
 			return null;
 		}
@@ -303,9 +338,11 @@ class App
 			return [];
 		}
 		self::stdErrPrintLine('Running ES Lint...');
+		$config = $this->esLintConfig !== self::DEFAULT_ESLINT_CONFIG ?
+			('--config ' . escapeshellarg($this->esLintConfig)) : '';
 		exec(
 			$this->nodeBin . ' ' . escapeshellarg($this->binEsLint) .
-			' --format=json ' . escapeshellarg($this->jsDir),
+			' --format=json ' . $config . ' ' . escapeshellarg($this->jsDir),
 			$output
 		);
 		$text = implode(PHP_EOL, $output);
@@ -365,7 +402,7 @@ class App
 
 	private function processComposerConfig(): void
 	{
-		$composerFile = $this->currentDir . '/composer.json';
+		$composerFile = $this->phpAppDir . '/composer.json';
 		if (is_file($composerFile)) {
 			$composer = self::getJson(file_get_contents($composerFile));
 			$config = $composer->extra->{'gitlab-code-quality'} ?? null;
@@ -435,6 +472,11 @@ class App
 				}
 			}
 		}
+	}
+
+	private function processNodeConfig(): void
+	{
+		// ... ... ...
 	}
 
 	/**
