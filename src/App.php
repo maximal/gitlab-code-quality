@@ -245,7 +245,7 @@ class App
 				$severity = $issue->severity;
 			}
 			$result[] = $this->makeIssue(
-				($this->phpDir !== '.' ? ($this->phpDir . DIRECTORY_SEPARATOR) : '') . $issue->file_name,
+				$issue->file_path,
 				$issue->line_from,
 				'Psalm: ' . $issue->message,
 				$severity,
