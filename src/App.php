@@ -276,7 +276,7 @@ class App
 		);
 		$text = implode(PHP_EOL, $output);
 		$data = self::getJson($text);
-		if (!is_object($data) || !is_object($data->files)) {
+		if (!is_object($data) || !isset($data->files)) {
 			$this->lastErrors = $text;
 			return null;
 		}
@@ -387,12 +387,14 @@ class App
 		}
 
 		if ($this->printStats) {
-			arsort($types);
-			self::stdErrPrintLine('Issue types by count:');
-			self::stdErrPrintLine("\tRNK\tCNT\tTYPE\t");
-			$rank = 1;
-			foreach ($types as $type => $count) {
-				self::stdErrPrintLine("\t#" . ($rank++) . "\t" . $count . "\t" . $type);
+			if (count($types) > 0) {
+				arsort($types);
+				self::stdErrPrintLine('Issue types by count:');
+				self::stdErrPrintLine("\tRNK\tCNT\tTYPE\t");
+				$rank = 1;
+				foreach ($types as $type => $count) {
+					self::stdErrPrintLine("\t#" . ($rank++) . "\t" . $count . "\t" . $type);
+				}
 			}
 			self::stdErrPrintLine('Total issues: ' . count($issues) . ' (' . $critical . ' critical)');
 		}
