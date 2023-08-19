@@ -67,6 +67,8 @@ You can override this behavior in `extra` section of your project’s `composer.
 			// Paths above are typical for Laravel projects
 			// Print issue statistics table to stderr (`false` to only print issues JSON to stdout)
 			"stats": true,
+			// Print last issue location for every issue type in statistics table
+			"last": false,
 			// Run Psalm and PHP CodeSniffer with `--no-cache` option
 			"cache": false,
 

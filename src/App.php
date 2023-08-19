@@ -35,6 +35,7 @@ class App
 	private bool $printStats = true;
 	private bool $silent = false;
 	private bool $cache = false;
+	private bool $printLast = false;
 
 	private bool $runPsalm = true;
 	private bool $runPhpStan = true;
@@ -378,12 +379,15 @@ class App
 
 		// Группировка ошибок
 		$types = [];
+		$lastIssues = [];
 		$critical = 0;
 		foreach ($issues as $issue) {
 			if (($issue['severity'] ?? '') === self::SEVERITY_CRITICAL) {
 				$critical++;
 			}
-			$types[$issue['check_name']] = ($types[$issue['check_name']] ?? 0) + 1;
+			$type = $issue['check_name'];
+			$types[$type] = ($types[$type] ?? 0) + 1;
+			$lastIssues[$type] = $issue;
 		}
 
 		if ($this->printStats) {
@@ -394,6 +398,17 @@ class App
 				$rank = 1;
 				foreach ($types as $type => $count) {
 					self::stdErrPrintLine("\t#" . ($rank++) . "\t" . $count . "\t" . $type);
+					if ($this->printLast) {
+						$lastIssue = $lastIssues[$type]['location'];
+						$position = [$lastIssue['full_path']];
+						if (isset($lastIssue['positions']['begin']['line'])) {
+							$position[] = $lastIssue['positions']['begin']['line'];
+						}
+						if (isset($lastIssue['positions']['begin']['column'])) {
+							$position[] = $lastIssue['positions']['begin']['column'];
+						}
+						self::stdErrPrintLine("\t\t\t" . 'Last: ' . implode(':', $position));
+					}
 				}
 			}
 			self::stdErrPrintLine('Total issues: ' . count($issues) . ' (' . $critical . ' critical)');
@@ -464,6 +479,9 @@ class App
 						case 'stats':
 							$this->printStats = (bool)$value;
 							break;
+						case 'last':
+							$this->printLast = (bool)$value;
+							break;
 						case 'silent':
 							$this->silent = (bool)$value;
 							break;
@@ -498,7 +516,7 @@ class App
 		int        $endColumn = -1
 	): array
 	{
-		$path = $this->relativePath($path);
+		$relativePath = $this->relativePath($path);
 		if ($severity === 1 || strtolower($severity) === 'warning') {
 			$severity = self::SEVERITY_MINOR;
 		} elseif ($severity === 2 || strtolower($severity) === 'error') {
@@ -527,10 +545,11 @@ class App
 			'categories' => ['Clarity', 'Style'],
 			'severity' => $severity,
 			'location' => [
-				'path' => $path,
+				'path' => $relativePath,
+				'full_path' => $path,
 				'positions' => $positions,
 			],
-			'fingerprint' => sha1($path . '[' . $positionString . ']' . $description),
+			'fingerprint' => sha1($relativePath . '[' . $positionString . ']' . $description),
 		];
 	}
 
