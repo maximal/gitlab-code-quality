@@ -5,12 +5,14 @@ This program generates the report for [GitLab Code Quality widget](https://docs.
 * [PHPStan](https://phpstan.org/)
 * [PHP CodeSniffer](https://github.com/squizlabs/PHP_CodeSniffer)
 * [ESLint](https://eslint.org/)
+* [StyleLint](https://stylelint.io/)
 
 They are automatically detected in following paths:
 * vendor/bin/psalm
 * vendor/bin/phpstan
 * vendor/bin/phpcs
 * node_modules/eslint/bin/eslint.js
+* node_modules/stylelint/bin/stylelint.mjs
 
 
 ## Installation
@@ -87,12 +89,20 @@ You can override this behavior in `extra` section of your project’s `composer.
 			// PHP CodeSniffer standard (name or path to rules file)
 			"phpcs-standard": "PSR12",
 
+			// Node executable for EsLint and StyleLint
+			"node": "node",
+
 			// Run ESLint if it exists in `node_modules/eslint/bin/eslint.js`
 			"eslint": true,
 			// ESLint config file
 			"eslint-config": ".eslintrc.yml",
-			// Node executable for eslint
-			"node": "node",
+
+			// Run StyleLint if it exists in `node_modules/stylelint/bin/stylelint.mjs`
+			"stylelint": true,
+			// StyleLint config file
+			"stylelint-config": ".stylelintrc.yml",
+			// Files to check glob pattern for StyleLint
+			"stylelint-files": "resources/**/*.{css,scss,sass,vue}"
 		}
 	},
 	// ... ... ...

@@ -44,6 +44,7 @@
 			"php-dir": ".",
 			"js-dir": "resources",
 			"stats": true,
+			"last": false,
 			"cache": false,
 			"psalm": true,
 			"psalm-config": "psalm.xml",
@@ -51,9 +52,12 @@
 			"phpstan-config": "phpstan.neon",
 			"phpcs": true,
 			"phpcs-standard": "PSR12",
+			"node": "node",
 			"eslint": true,
 			"eslint-config": ".eslintrc.yml",
-			"node": "node"
+			"stylelint": true,
+			"stylelint-config": ".stylelintrc.yml",
+			"stylelint-files": "resources/**/*.{css,scss,sass,vue}"
 		}
 	}
 }

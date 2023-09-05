@@ -26,21 +26,24 @@ class App
 	private string $phpDir = '.';
 	private string $jsDir = 'resources';
 	private string $nodeBin = 'node';
+	private string $styleLintFiles = 'resources/**/*.{css,scss,sass,vue}';
 
 	private string $psalmConfig = self::DEFAULT_PSALM_CONFIG;
 	private string $phpStanConfig = self::DEFAULT_PHPSTAN_CONFIG;
 	private string $phpCsStandard = self::DEFAULT_PHPCS_STANDARD;
 	private string $esLintConfig = self::DEFAULT_ESLINT_CONFIG;
+	private string $styleLintConfig = self::DEFAULT_STYLELINT_CONFIG;
 
 	private bool $printStats = true;
+	private bool $printLast = false;
 	private bool $silent = false;
 	private bool $cache = false;
-	private bool $printLast = false;
 
 	private bool $runPsalm = true;
 	private bool $runPhpStan = true;
 	private bool $runPhpCs = true;
 	private bool $runEsLint = true;
+	private bool $runStyleLint = true;
 
 	// Runtime variables
 	private array $argv;
@@ -53,11 +56,13 @@ class App
 	private bool $hasPhpStan = false;
 	private bool $hasPhpCs = false;
 	private bool $hasEsLint = false;
+	private bool $hasStyleLint = false;
 
 	private string $binPsalm;
 	private string $binPhpStan;
 	private string $binPhpCs;
 	private string $binEsLint;
+	private string $binStyleLint;
 
 	private ?string $lastErrors = null;
 
@@ -71,16 +76,18 @@ class App
 	private const RESULT_PHPSTAN_FAILED = 2;
 	private const RESULT_PHPCS_FAILED = 3;
 	private const RESULT_ESLINT_FAILED = 4;
-	private const RESULT_CRITICAL_ISSUES = 5;
+	private const RESULT_STYLELINT_FAILED = 5;
+	private const RESULT_CRITICAL_ISSUES = 6;
 
 	// Default config files
 	private const DEFAULT_PSALM_CONFIG = 'psalm.xml';
 	private const DEFAULT_PHPSTAN_CONFIG = 'phpstan.neon';
 	private const DEFAULT_PHPCS_STANDARD = 'PSR12';
 	private const DEFAULT_ESLINT_CONFIG = '.eslintrc.yml';
+	private const DEFAULT_STYLELINT_CONFIG = '.stylelintrc.yml';
 
 	// Project version
-	public const VERSION = '1.1';
+	public const VERSION = '1.3';
 
 
 	public function __construct(array $argv, string $binDir)
@@ -132,7 +139,7 @@ class App
 		echo '===============================================', PHP_EOL;
 		echo 'v', str_pad(self::VERSION, 22), '© MaximAL of Sijeko 2023', PHP_EOL;
 		echo PHP_EOL;
-		echo 'Runs: Psalm, PHPStan, PHP CodeSniffer, ESLint.', PHP_EOL;
+		echo 'Runs: Psalm, PHPStan, PHP CodeSniffer, ESLint, StyleLint.', PHP_EOL;
 		echo PHP_EOL;
 		echo 'Installation:', PHP_EOL;
 		echo '    composer require maximal/gitlab-code-quality', PHP_EOL;
@@ -155,11 +162,13 @@ class App
 		$this->binPhpStan = realpath($binDir . 'phpstan');
 		$this->binPhpCs = realpath($binDir . 'phpcs');
 		$this->binEsLint = realpath($this->currentDir . '/node_modules/eslint/bin/eslint.js');
+		$this->binStyleLint = realpath($this->currentDir . '/node_modules/stylelint/bin/stylelint.mjs');
 
 		$this->hasPsalm = is_file($this->binPsalm);
 		$this->hasPhpStan = is_file($this->binPhpStan);
 		$this->hasPhpCs = is_file($this->binPhpCs);
 		$this->hasEsLint = is_file($this->binEsLint);
+		$this->hasStyleLint = is_file($this->binStyleLint);
 	}
 
 	private function process(): int
@@ -207,6 +216,14 @@ class App
 			return self::RESULT_ESLINT_FAILED;
 		}
 		array_push($issues, ...$esLint);
+
+		$styleLint = $this->runStyleLint();
+		if ($this->lastErrors !== null) {
+			self::stdErrPrintLine($this->lastErrors);
+			self::stdErrPrintLine('Error running StyleLint. See errors above.');
+			return self::RESULT_STYLELINT_FAILED;
+		}
+		array_push($issues, ...$styleLint);
 
 		if (getcwd() !== $this->currentDir) {
 			// Change current dir to the old current dir
@@ -370,6 +387,44 @@ class App
 		return $result;
 	}
 
+	private function runStyleLint(): ?array
+	{
+		$this->lastErrors = null;
+		if (!$this->runStyleLint || !$this->hasStyleLint) {
+			return [];
+		}
+		self::stdErrPrintLine('Running StyleLint...');
+		$config = $this->styleLintConfig !== self::DEFAULT_STYLELINT_CONFIG ?
+			('--config ' . escapeshellarg($this->styleLintConfig)) : '';
+		exec(
+			$this->nodeBin . ' ' . escapeshellarg($this->binStyleLint) .
+			' --formatter=json ' . $config . ' ' . escapeshellarg($this->styleLintFiles),
+			$output
+		);
+		$text = implode(PHP_EOL, $output);
+		$data = self::getJson($text);
+		if (!is_array($data)) {
+			$this->lastErrors = $text;
+			return null;
+		}
+		$result = [];
+		foreach ($data as $file) {
+			foreach ($file->warnings as $issue) {
+				$result[] = $this->makeIssue(
+					$file->source,
+					$issue->line,
+					'StyleLint: ' . $issue->text,
+					$issue->severity,
+					'StyleLint.' . $issue->rule,
+					$issue->column,
+					$issue->endLine,
+					$issue->endColumn
+				);
+			}
+		}
+		return $result;
+	}
+
 	private function getStats(array $issues): int
 	{
 		if (!$this->silent) {
@@ -456,6 +511,11 @@ class App
 							$this->phpCsStandard = trim($value);
 							break;
 
+						// NodeJS
+						case 'node':
+							$this->nodeBin = trim($value);
+							break;
+
 						// EsLint
 						case 'eslint':
 							if ($value === false) {
@@ -465,8 +525,18 @@ class App
 						case 'eslint-config':
 							$this->esLintConfig = trim($value);
 							break;
-						case 'node':
-							$this->nodeBin = trim($value);
+
+						// StyleLint
+						case 'stylelint':
+							if ($value === false) {
+								$this->runStyleLint = false;
+							}
+							break;
+						case 'stylelint-config':
+							$this->styleLintConfig = trim($value);
+							break;
+						case 'stylelint-files':
+							$this->styleLintFiles = trim($value);
 							break;
 
 						// Other
