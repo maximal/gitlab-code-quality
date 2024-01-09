@@ -398,7 +398,8 @@ class App
 			('--config ' . escapeshellarg($this->styleLintConfig)) : '';
 		exec(
 			$this->nodeBin . ' ' . escapeshellarg($this->binStyleLint) .
-			' --formatter=json ' . $config . ' ' . escapeshellarg($this->styleLintFiles),
+			' --formatter=json ' . $config . ' ' . escapeshellarg($this->styleLintFiles) .
+			' 2>&1',
 			$output
 		);
 		$text = implode(PHP_EOL, $output);
