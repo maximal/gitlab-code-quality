@@ -23,12 +23,7 @@
 		"ext-json": "*",
 		"ext-mbstring": "*"
 	},
-	"_require-dev_": {
-		"squizlabs/php_codesniffer": "@stable",
-		"phpstan/phpstan": "@stable",
-		"roave/security-advisories": "dev-latest",
-		"vimeo/psalm": "@stable"
-	},
+	"require-dev": {},
 	"minimum-stability": "stable",
 	"autoload": {
 		"psr-4": {
@@ -52,6 +47,7 @@
 			"phpstan-config": "phpstan.neon",
 			"phpcs": true,
 			"phpcs-standard": "PSR12",
+			"bun": "bun",
 			"node": "node",
 			"eslint": true,
 			"eslint-config": ".eslintrc.yml",

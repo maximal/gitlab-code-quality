@@ -9,6 +9,7 @@
  * @link https://maximals.ru/
  * @link https://sijeko.ru/
  *
+ * @since 2024-04-18 Bun JS runtime support
  * @since 2023-03-19
  * @date 2023-03-19
  */
@@ -24,7 +25,9 @@ class App
 {
 	// Config variables
 	private string $phpDir = '.';
+
 	private string $jsDir = 'resources';
+	private string $bunBin = 'bun';
 	private string $nodeBin = 'node';
 	private string $styleLintFiles = 'resources/**/*.{css,scss,sass,vue}';
 
@@ -47,6 +50,7 @@ class App
 
 	// Runtime variables
 	private array $argv;
+	private string $selfBin;
 	private string $binDir;
 	private string $phpAppDir;
 	private string $jsAppDir;
@@ -55,6 +59,9 @@ class App
 	private bool $hasPsalm = false;
 	private bool $hasPhpStan = false;
 	private bool $hasPhpCs = false;
+
+	private bool $hasBun = false;
+	private bool $hasNode = false;
 	private bool $hasEsLint = false;
 	private bool $hasStyleLint = false;
 
@@ -65,6 +72,8 @@ class App
 	private string $binStyleLint;
 
 	private ?string $lastErrors = null;
+
+	private int $verbosity = 1;
 
 	// Severities
 	private const SEVERITY_MINOR = 'minor';
@@ -87,7 +96,7 @@ class App
 	private const DEFAULT_STYLELINT_CONFIG = '.stylelintrc.yml';
 
 	// Project version
-	public const VERSION = '1.3';
+	public const VERSION = '1.4';
 
 
 	public function __construct(array $argv, string $binDir)
@@ -116,20 +125,26 @@ class App
 	{
 		foreach ($this->argv as $index => $argument) {
 			if ($index === 0) {
+				$this->selfBin = $argument;
 				continue;
 			}
 			switch (strtolower(trim($argument))) {
 				case '--help':
 				case '-h':
 					return $this->printHelp();
+
 				case '--version':
 				case '-v':
-					echo 'v' . self::VERSION, PHP_EOL;
-					return 0;
+					return $this->printVersion();
+
+				case '--verbose':
+				case '-vv':
+					$this->verbosity = 2;
+					break;
 			}
 		}
 		$this->processComposerConfig();
-		$this->processNodeConfig();
+		$this->processJsConfig();
 		return null;
 	}
 
@@ -145,7 +160,7 @@ class App
 		echo '    composer require maximal/gitlab-code-quality', PHP_EOL;
 		echo PHP_EOL;
 		echo 'Usage:', PHP_EOL;
-		echo '    ' . $this->argv[0] . ' > gl-code-quality-report.json', PHP_EOL;
+		echo '    ' . $this->selfBin . ' > gl-code-quality-report.json', PHP_EOL;
 		echo PHP_EOL;
 		echo 'Options:', PHP_EOL;
 		echo '    -h  --help       Print help.', PHP_EOL;
@@ -155,9 +170,17 @@ class App
 		return 0;
 	}
 
+	private function printVersion(): int
+	{
+		echo 'v' . self::VERSION, PHP_EOL;
+		return 0;
+	}
+
 	private function detectTools(): void
 	{
 		$binDir = $this->binDir . '/';
+
+		// Detect tools
 		$this->binPsalm = realpath($binDir . 'psalm');
 		$this->binPhpStan = realpath($binDir . 'phpstan');
 		$this->binPhpCs = realpath($binDir . 'phpcs');
@@ -169,6 +192,15 @@ class App
 		$this->hasPhpCs = is_file($this->binPhpCs);
 		$this->hasEsLint = is_file($this->binEsLint);
 		$this->hasStyleLint = is_file($this->binStyleLint);
+
+		// Detect JS runtime
+		exec($this->bunBin . ' --version 2>&1', $output, $code);
+		$this->hasBun = $code === 0;
+		if (!$this->hasBun) {
+			exec($this->nodeBin . ' --version 2>&1', $output, $code);
+			$this->hasNode = $code === 0;
+		}
+		$this->stdErrPrintLine('JS runtime: ' . $this->getJsRuntime(), 2);
 	}
 
 	private function process(): int
@@ -182,24 +214,24 @@ class App
 
 		$psalm = $this->runPsalm();
 		if ($this->lastErrors !== null) {
-			self::stdErrPrintLine($this->lastErrors);
-			self::stdErrPrintLine('Error running Psalm. See errors above.');
+			$this->stdErrPrintLine($this->lastErrors);
+			$this->stdErrPrintLine('Error running Psalm. See errors above.');
 			return self::RESULT_PSALM_FAILED;
 		}
 		array_push($issues, ...$psalm);
 
 		$phpStan = $this->runPhpStan();
 		if ($this->lastErrors !== null) {
-			self::stdErrPrintLine($this->lastErrors);
-			self::stdErrPrintLine('Error running PHPStan. See errors above.');
+			$this->stdErrPrintLine($this->lastErrors);
+			$this->stdErrPrintLine('Error running PHPStan. See errors above.');
 			return self::RESULT_PHPSTAN_FAILED;
 		}
 		array_push($issues, ...$phpStan);
 
 		$phpCs = $this->runPhpCs();
 		if ($this->lastErrors !== null) {
-			self::stdErrPrintLine($this->lastErrors);
-			self::stdErrPrintLine('Error running PHP CodeSniffer. See errors above.');
+			$this->stdErrPrintLine($this->lastErrors);
+			$this->stdErrPrintLine('Error running PHP CodeSniffer. See errors above.');
 			return self::RESULT_PHPCS_FAILED;
 		}
 		array_push($issues, ...$phpCs);
@@ -211,16 +243,16 @@ class App
 
 		$esLint = $this->runEsLint();
 		if ($this->lastErrors !== null) {
-			self::stdErrPrintLine($this->lastErrors);
-			self::stdErrPrintLine('Error running ESLint. See errors above.');
+			$this->stdErrPrintLine($this->lastErrors);
+			$this->stdErrPrintLine('Error running ESLint. See errors above.');
 			return self::RESULT_ESLINT_FAILED;
 		}
 		array_push($issues, ...$esLint);
 
 		$styleLint = $this->runStyleLint();
 		if ($this->lastErrors !== null) {
-			self::stdErrPrintLine($this->lastErrors);
-			self::stdErrPrintLine('Error running StyleLint. See errors above.');
+			$this->stdErrPrintLine($this->lastErrors);
+			$this->stdErrPrintLine('Error running StyleLint. See errors above.');
 			return self::RESULT_STYLELINT_FAILED;
 		}
 		array_push($issues, ...$styleLint);
@@ -239,7 +271,7 @@ class App
 		if (!$this->runPsalm || !$this->hasPsalm) {
 			return [];
 		}
-		self::stdErrPrintLine('Running Psalm...');
+		$this->stdErrPrintLine('Running Psalm...');
 		$config = $this->psalmConfig !== self::DEFAULT_PSALM_CONFIG ?
 			('--config=' . escapeshellarg($this->psalmConfig)) : '';
 		$dir = !in_array($this->phpDir, ['', '.']) ? escapeshellarg($this->phpDir) : '';
@@ -282,7 +314,7 @@ class App
 		if (!$this->runPhpStan || !$this->hasPhpStan) {
 			return [];
 		}
-		self::stdErrPrintLine('Running PhpStan...');
+		$this->stdErrPrintLine('Running PhpStan...');
 		$config = $this->phpStanConfig !== self::DEFAULT_PHPSTAN_CONFIG ?
 			('--configuration=' . escapeshellarg($this->phpStanConfig)) : '';
 		$dir = !in_array($this->phpDir, ['', '.']) ? escapeshellarg($this->phpDir) : '';
@@ -317,7 +349,7 @@ class App
 		if (!$this->runPhpCs || !$this->hasPhpCs) {
 			return [];
 		}
-		self::stdErrPrintLine(
+		$this->stdErrPrintLine(
 			'Running PHP CodeSniffer with standard ' .
 			$this->phpCsStandard . '...'
 		);
@@ -355,11 +387,16 @@ class App
 		if (!$this->runEsLint || !$this->hasEsLint) {
 			return [];
 		}
-		self::stdErrPrintLine('Running ES Lint...');
+		$this->stdErrPrintLine('Running ES Lint...');
+		$jsRuntime = $this->getJsRuntime();
+		if ($jsRuntime === null) {
+			$this->lastErrors = 'No JS runtime found: no Bun, no Node';
+			return null;
+		}
 		$config = $this->esLintConfig !== self::DEFAULT_ESLINT_CONFIG ?
 			('--config ' . escapeshellarg($this->esLintConfig)) : '';
 		exec(
-			$this->nodeBin . ' ' . escapeshellarg($this->binEsLint) .
+			$jsRuntime . ' ' . escapeshellarg($this->binEsLint) .
 			' --format=json ' . $config . ' ' . escapeshellarg($this->jsDir),
 			$output
 		);
@@ -393,11 +430,16 @@ class App
 		if (!$this->runStyleLint || !$this->hasStyleLint) {
 			return [];
 		}
-		self::stdErrPrintLine('Running StyleLint...');
+		$this->stdErrPrintLine('Running StyleLint...');
+		$jsRuntime = $this->getJsRuntime();
+		if ($jsRuntime === null) {
+			$this->lastErrors = 'No JS runtime found: no Bun, no Node';
+			return null;
+		}
 		$config = $this->styleLintConfig !== self::DEFAULT_STYLELINT_CONFIG ?
 			('--config ' . escapeshellarg($this->styleLintConfig)) : '';
 		exec(
-			$this->nodeBin . ' ' . escapeshellarg($this->binStyleLint) .
+			$jsRuntime . ' ' . escapeshellarg($this->binStyleLint) .
 			' --formatter=json ' . $config . ' ' . escapeshellarg($this->styleLintFiles) .
 			' 2>&1',
 			$output
@@ -449,11 +491,11 @@ class App
 		if ($this->printStats) {
 			if (count($types) > 0) {
 				arsort($types);
-				self::stdErrPrintLine('Issue types by count:');
-				self::stdErrPrintLine("\tRNK\tCNT\tTYPE\t");
+				$this->stdErrPrintLine('Issue types by count:');
+				$this->stdErrPrintLine("\tRNK\tCNT\tTYPE\t");
 				$rank = 1;
 				foreach ($types as $type => $count) {
-					self::stdErrPrintLine("\t#" . ($rank++) . "\t" . $count . "\t" . $type);
+					$this->stdErrPrintLine("\t#" . ($rank++) . "\t" . $count . "\t" . $type);
 					if ($this->printLast) {
 						$lastIssue = $lastIssues[$type]['location'];
 						$position = [$lastIssue['full_path']];
@@ -463,11 +505,11 @@ class App
 						if (isset($lastIssue['positions']['begin']['column'])) {
 							$position[] = $lastIssue['positions']['begin']['column'];
 						}
-						self::stdErrPrintLine("\t\t\t" . 'Last: ' . implode(':', $position));
+						$this->stdErrPrintLine("\t\t\t" . 'Last: ' . implode(':', $position));
 					}
 				}
 			}
-			self::stdErrPrintLine('Total issues: ' . count($issues) . ' (' . $critical . ' critical)');
+			$this->stdErrPrintLine('Total issues: ' . count($issues) . ' (' . $critical . ' critical)');
 		}
 
 		return $critical > 0 ? self::RESULT_CRITICAL_ISSUES : 0;
@@ -477,6 +519,7 @@ class App
 	{
 		$composerFile = $this->phpAppDir . '/composer.json';
 		if (is_file($composerFile)) {
+			$this->stdErrPrintLine('Loading Composer config file: ' . $composerFile, 2);
 			$composer = self::getJson(file_get_contents($composerFile));
 			$config = $composer->extra->{'gitlab-code-quality'} ?? null;
 			if ($config) {
@@ -510,6 +553,11 @@ class App
 							break;
 						case 'phpcs-standard':
 							$this->phpCsStandard = trim($value);
+							break;
+
+						// Bun
+						case 'bun':
+							$this->bunBin = trim($value);
 							break;
 
 						// NodeJS
@@ -565,9 +613,25 @@ class App
 		}
 	}
 
-	private function processNodeConfig(): void
+	private function processJsConfig(): void
 	{
-		// ... ... ...
+		//$packageFile = $this->phpDir . '/package.json';
+		//if (is_file($packageFile)) {
+		//	$this->stdErrPrintLine('Loading JS config file: ' . $packageFile, 2);
+		//	$package = self::getJson(file_get_contents($packageFile));
+		//	// ... ... ...
+		//}
+	}
+
+	private function getJsRuntime(): ?string
+	{
+		if ($this->hasBun) {
+			return $this->bunBin;
+		}
+		if ($this->hasNode) {
+			return $this->nodeBin;
+		}
+		return null;
 	}
 
 	/**
@@ -664,8 +728,11 @@ class App
 	/**
 	 * Напечатать строку в STDERR
 	 */
-	private static function stdErrPrintLine(string $line): void
+	private function stdErrPrintLine(string $line, int $verbosity = 1): void
 	{
+		if ($this->verbosity < $verbosity) {
+			return;
+		}
 		fwrite(STDERR, $line . PHP_EOL);
 	}
 }

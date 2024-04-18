@@ -14,6 +14,10 @@ They are automatically detected in following paths:
 * node_modules/eslint/bin/eslint.js
 * node_modules/stylelint/bin/stylelint.mjs
 
+Two JS runtimes supported (to run ESLint and StyleLint checks):
+* Bun (preferred over Node);
+* Node (used if no Bun executable found).
+
 
 ## Installation
 Install the tool via [Composer](https://getcomposer.org/):
@@ -89,7 +93,9 @@ You can override this behavior in `extra` section of your project’s `composer.
 			// PHP CodeSniffer standard (name or path to rules file)
 			"phpcs-standard": "PSR12",
 
-			// Node executable for EsLint and StyleLint
+			// Bun executable for EsLint and StyleLint (preferred over Node)
+			"bun": "bun",
+			// Node executable for EsLint and StyleLint (used if no Bun found)
 			"node": "node",
 
 			// Run ESLint if it exists in `node_modules/eslint/bin/eslint.js`
