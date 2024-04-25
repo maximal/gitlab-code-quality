@@ -4,6 +4,7 @@
 	"keywords": [
 		"GitLab",
 		"code quality",
+		"code climate",
 		"report",
 		"widget",
 		"generator",
@@ -47,6 +48,8 @@
 			"phpstan-config": "phpstan.neon",
 			"phpcs": true,
 			"phpcs-standard": "PSR12",
+			"ecs": true,
+			"ecs-config": "ecs.php",
 			"bun": "bun",
 			"node": "node",
 			"eslint": true,

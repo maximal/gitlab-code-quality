@@ -1,22 +1,26 @@
 # GitLab Code Quality generator for PHP and JS projects
 
-This program generates the report for [GitLab Code Quality widget](https://docs.gitlab.com/ee/ci/testing/code_quality.html#view-code-quality-results) in merge requests and pipelines using these tools and linters:
+This program generates [Code Climate](https://github.com/codeclimate/platform/blob/master/spec/analyzers/SPEC.md#data-types) report for [GitLab Code Quality widget](https://docs.gitlab.com/ee/ci/testing/code_quality.html#view-code-quality-results) in merge requests and pipelines using various tools and linters:
 * [Psalm](https://psalm.dev/)
 * [PHPStan](https://phpstan.org/)
 * [PHP CodeSniffer](https://github.com/squizlabs/PHP_CodeSniffer)
+* [ECS](https://github.com/easy-coding-standard/easy-coding-standard)
 * [ESLint](https://eslint.org/)
 * [StyleLint](https://stylelint.io/)
 
-They are automatically detected in following paths:
-* vendor/bin/psalm
-* vendor/bin/phpstan
-* vendor/bin/phpcs
-* node_modules/eslint/bin/eslint.js
-* node_modules/stylelint/bin/stylelint.mjs
+They are automatically detected in the following paths:
+* `vendor/bin/psalm`
+* `vendor/bin/phpstan`
+* `vendor/bin/phpcs`
+* `vendor/bin/ecs`
+* `node_modules/eslint/bin/eslint.js`
+* `node_modules/stylelint/bin/stylelint.mjs`
 
 Two JS runtimes supported (to run ESLint and StyleLint checks):
-* Bun (preferred over Node);
-* Node (used if no Bun executable found).
+* [Bun](https://bun.sh/) (preferred over Node);
+* [Node](https://nodejs.org/en) (used if no Bun executable found).
+
+The application is written in pure PHP (8.0+) without any framework or library dependencies.
 
 
 ## Installation
@@ -71,11 +75,11 @@ You can override this behavior in `extra` section of your project’s `composer.
 			// Directory for JS checks/linters
 			"js-dir": "resources",
 			// Paths above are typical for Laravel projects
-			// Print issue statistics table to stderr (`false` to only print issues JSON to stdout)
+			// Print issue statistics table to STDERR (`false` to only print issues JSON to STDOUT)
 			"stats": true,
 			// Print last issue location for every issue type in statistics table
 			"last": false,
-			// Run Psalm and PHP CodeSniffer with `--no-cache` option
+			// Run Psalm and PHP CodeSniffer with `--no-cache` and ECX with `--clear-cache`
 			"cache": false,
 
 			// Run Psalm if it exists in `vendor/bin`
@@ -92,6 +96,11 @@ You can override this behavior in `extra` section of your project’s `composer.
 			"phpcs": true,
 			// PHP CodeSniffer standard (name or path to rules file)
 			"phpcs-standard": "PSR12",
+
+			// Run ECS (Easy Coding Standard) if it exists in `vendor/bin`
+			"ecs": true,
+			// ECS config file path
+			"ecs-config": "ecs.php",
 
 			// Bun executable for EsLint and StyleLint (preferred over Node)
 			"bun": "bun",

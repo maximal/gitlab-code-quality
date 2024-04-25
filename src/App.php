@@ -5,10 +5,13 @@
  *
  * Code style: PSR-12T (PSR12 with SmartTabs).
  *
+ * Written in pure PHP (8.0+) without any framework or library dependencies.
+ *
  * @link https://github.com/maximal/gitlab-code-quality
  * @link https://maximals.ru/
  * @link https://sijeko.ru/
  *
+ * @since 2024-04-25 ECS (Easy Coding Standard) support
  * @since 2024-04-18 Bun JS runtime support
  * @since 2023-03-19
  * @date 2023-03-19
@@ -23,6 +26,9 @@ use Throwable;
  */
 class App
 {
+	// Project version
+	public const VERSION = '1.5';
+
 	// Config variables
 	private string $phpDir = '.';
 
@@ -34,6 +40,7 @@ class App
 	private string $psalmConfig = self::DEFAULT_PSALM_CONFIG;
 	private string $phpStanConfig = self::DEFAULT_PHPSTAN_CONFIG;
 	private string $phpCsStandard = self::DEFAULT_PHPCS_STANDARD;
+	private string $ecsConfig = self::DEFAULT_ECS_CONFIG;
 	private string $esLintConfig = self::DEFAULT_ESLINT_CONFIG;
 	private string $styleLintConfig = self::DEFAULT_STYLELINT_CONFIG;
 
@@ -45,6 +52,7 @@ class App
 	private bool $runPsalm = true;
 	private bool $runPhpStan = true;
 	private bool $runPhpCs = true;
+	private bool $runEcs = true;
 	private bool $runEsLint = true;
 	private bool $runStyleLint = true;
 
@@ -59,6 +67,7 @@ class App
 	private bool $hasPsalm = false;
 	private bool $hasPhpStan = false;
 	private bool $hasPhpCs = false;
+	private bool $hasEcs = false;
 
 	private bool $hasBun = false;
 	private bool $hasNode = false;
@@ -68,6 +77,7 @@ class App
 	private string $binPsalm;
 	private string $binPhpStan;
 	private string $binPhpCs;
+	private string $binEcs;
 	private string $binEsLint;
 	private string $binStyleLint;
 
@@ -84,19 +94,18 @@ class App
 	private const RESULT_PSALM_FAILED = 1;
 	private const RESULT_PHPSTAN_FAILED = 2;
 	private const RESULT_PHPCS_FAILED = 3;
-	private const RESULT_ESLINT_FAILED = 4;
-	private const RESULT_STYLELINT_FAILED = 5;
-	private const RESULT_CRITICAL_ISSUES = 6;
+	private const RESULT_ECS_FAILED = 4;
+	private const RESULT_ESLINT_FAILED = 5;
+	private const RESULT_STYLELINT_FAILED = 6;
+	private const RESULT_CRITICAL_ISSUES = 7;
 
 	// Default config files
 	private const DEFAULT_PSALM_CONFIG = 'psalm.xml';
 	private const DEFAULT_PHPSTAN_CONFIG = 'phpstan.neon';
 	private const DEFAULT_PHPCS_STANDARD = 'PSR12';
+	private const DEFAULT_ECS_CONFIG = 'ecs.php';
 	private const DEFAULT_ESLINT_CONFIG = '.eslintrc.yml';
 	private const DEFAULT_STYLELINT_CONFIG = '.stylelintrc.yml';
-
-	// Project version
-	public const VERSION = '1.4';
 
 
 	public function __construct(array $argv, string $binDir)
@@ -141,6 +150,10 @@ class App
 				case '-vv':
 					$this->verbosity = 2;
 					break;
+
+				case '-vvv':
+					$this->verbosity = 3;
+					break;
 			}
 		}
 		$this->processComposerConfig();
@@ -152,9 +165,9 @@ class App
 	{
 		echo '    GitLab Code Quality Tool for PHP and JS    ', PHP_EOL;
 		echo '===============================================', PHP_EOL;
-		echo 'v', str_pad(self::VERSION, 22), '© MaximAL of Sijeko 2023', PHP_EOL;
+		echo 'v', str_pad(self::VERSION, 17), '© MaximAL of Sijeko 2023—2024', PHP_EOL;
 		echo PHP_EOL;
-		echo 'Runs: Psalm, PHPStan, PHP CodeSniffer, ESLint, StyleLint.', PHP_EOL;
+		echo 'Runs: Psalm, PHPStan, PHP CodeSniffer, ECS, ESLint, StyleLint.', PHP_EOL;
 		echo PHP_EOL;
 		echo 'Installation:', PHP_EOL;
 		echo '    composer require maximal/gitlab-code-quality', PHP_EOL;
@@ -163,10 +176,12 @@ class App
 		echo '    ' . $this->selfBin . ' > gl-code-quality-report.json', PHP_EOL;
 		echo PHP_EOL;
 		echo 'Options:', PHP_EOL;
-		echo '    -h  --help       Print help.', PHP_EOL;
-		echo '    -v  --version    Print version.', PHP_EOL;
+		echo '    -h   --help       Print help.', PHP_EOL;
+		echo '    -v   --version    Print version.', PHP_EOL;
+		echo '    -vv  --verbose    Increase output verbosity.', PHP_EOL;
 		echo PHP_EOL;
-		echo 'https://github.com/maximal/gitlab-code-quality', PHP_EOL;
+		echo 'More information:', PHP_EOL;
+		echo '    https://github.com/maximal/gitlab-code-quality', PHP_EOL;
 		return 0;
 	}
 
@@ -184,12 +199,14 @@ class App
 		$this->binPsalm = realpath($binDir . 'psalm');
 		$this->binPhpStan = realpath($binDir . 'phpstan');
 		$this->binPhpCs = realpath($binDir . 'phpcs');
+		$this->binEcs = realpath($binDir . 'ecs');
 		$this->binEsLint = realpath($this->currentDir . '/node_modules/eslint/bin/eslint.js');
 		$this->binStyleLint = realpath($this->currentDir . '/node_modules/stylelint/bin/stylelint.mjs');
 
 		$this->hasPsalm = is_file($this->binPsalm);
 		$this->hasPhpStan = is_file($this->binPhpStan);
 		$this->hasPhpCs = is_file($this->binPhpCs);
+		$this->hasEcs = is_file($this->binEcs);
 		$this->hasEsLint = is_file($this->binEsLint);
 		$this->hasStyleLint = is_file($this->binStyleLint);
 
@@ -236,6 +253,14 @@ class App
 		}
 		array_push($issues, ...$phpCs);
 
+		$ecs = $this->runEcs();
+		if ($this->lastErrors !== null) {
+			$this->stdErrPrintLine($this->lastErrors);
+			$this->stdErrPrintLine('Error running ESC. See errors above.');
+			return self::RESULT_ECS_FAILED;
+		}
+		array_push($issues, ...$ecs);
+
 		if ($this->jsAppDir !== $this->phpAppDir) {
 			// Change current dir to JS app dir
 			chdir($this->jsAppDir);
@@ -275,16 +300,14 @@ class App
 		$config = $this->psalmConfig !== self::DEFAULT_PSALM_CONFIG ?
 			('--config=' . escapeshellarg($this->psalmConfig)) : '';
 		$dir = !in_array($this->phpDir, ['', '.']) ? escapeshellarg($this->phpDir) : '';
-		exec(
+		$this->execCommand(
 			$this->binPsalm . ($this->cache ? '' : ' --no-cache') .
-			' --memory-limit=-1 --output-format=json ' . $config .
-			' ' . $dir,
+			' --memory-limit=-1 --output-format=json ' . $config . ' ' . $dir,
 			$output
 		);
-		$text = implode(PHP_EOL, $output);
-		$data = self::getJson($text);
+		$data = self::getJson($output);
 		if (!is_array($data)) {
-			$this->lastErrors = $text;
+			$this->lastErrors = $output;
 			return null;
 		}
 		$result = [];
@@ -318,16 +341,15 @@ class App
 		$config = $this->phpStanConfig !== self::DEFAULT_PHPSTAN_CONFIG ?
 			('--configuration=' . escapeshellarg($this->phpStanConfig)) : '';
 		$dir = !in_array($this->phpDir, ['', '.']) ? escapeshellarg($this->phpDir) : '';
-		exec(
+		$this->execCommand(
 			$this->binPhpStan .
 			' analyse --memory-limit=-1 --no-interaction --error-format=json ' .
 			$config . ' ' . $dir,
 			$output
 		);
-		$text = implode(PHP_EOL, $output);
-		$data = self::getJson($text);
+		$data = self::getJson($output);
 		if (!is_object($data) || !isset($data->files)) {
-			$this->lastErrors = $text;
+			$this->lastErrors = $output;
 			return null;
 		}
 		$result = [];
@@ -353,16 +375,15 @@ class App
 			'Running PHP CodeSniffer with standard ' .
 			$this->phpCsStandard . '...'
 		);
-		exec(
+		$this->execCommand(
 			$this->binPhpCs . ($this->cache ? '' : ' --no-cache') .
 			' --report=json --standard=' . escapeshellarg($this->phpCsStandard) .
 			' ' . escapeshellarg($this->phpDir),
 			$output
 		);
-		$text = implode(PHP_EOL, $output);
-		$data = self::getJson($text);
+		$data = self::getJson($output);
 		if (!is_object($data) || !is_object($data->files)) {
-			$this->lastErrors = $text;
+			$this->lastErrors = $output;
 			return null;
 		}
 		$result = [];
@@ -381,6 +402,56 @@ class App
 		return $result;
 	}
 
+	private function runEcs(): ?array
+	{
+		$this->lastErrors = null;
+		if (!$this->runEcs || !$this->hasEcs) {
+			return [];
+		}
+		$this->stdErrPrintLine('Running ESC (Easy Coding Standard)...');
+		$config = $this->ecsConfig !== self::DEFAULT_ECS_CONFIG ?
+			('--config=' . escapeshellarg($this->ecsConfig)) : '';
+		$dir = !in_array($this->phpDir, ['', '.']) ? escapeshellarg($this->phpDir) : '';
+		$this->execCommand(
+			$this->binEcs . ($this->cache ? '' : ' --clear-cache') .
+			' --memory-limit=-1 --output-format=json ' . $config . ' ' . $dir,
+			$output
+		);
+		$data = self::getJson($output);
+		if (!is_object($data) || !is_object($data->files)) {
+			$this->lastErrors = $output;
+			return null;
+		}
+		$result = [];
+		foreach ($data->files as $file => $item) {
+			foreach ($item->diffs as $diff) {
+				$line = 1;
+				$diffContext = 3;
+				if (
+					preg_match(
+						'/---\s*Original\n\+\+\+\s*New\n@@\s*-(\d+),\d+\s*\+\d+,\d+\s*@@/ui',
+						$diff->diff,
+						$match
+					)
+				) {
+					// Trying to guess the line number from the diff
+					$line = (int)$match[1] + $diffContext;
+				}
+				foreach ($diff->applied_checkers ?? [] as $check) {
+					$rule = str_replace('\\', '.', $check);
+					$result[] = $this->makeIssue(
+						$file,
+						$line,
+						'ESC: ' . $rule,
+						self::SEVERITY_MINOR,
+						'Ecs.' . $rule,
+					);
+				}
+			}
+		}
+		return $result;
+	}
+
 	private function runEsLint(): ?array
 	{
 		$this->lastErrors = null;
@@ -394,16 +465,15 @@ class App
 			return null;
 		}
 		$config = $this->esLintConfig !== self::DEFAULT_ESLINT_CONFIG ?
-			('--config ' . escapeshellarg($this->esLintConfig)) : '';
-		exec(
+			(' --config ' . escapeshellarg($this->esLintConfig)) : '';
+		$this->execCommand(
 			$jsRuntime . ' ' . escapeshellarg($this->binEsLint) .
-			' --format=json ' . $config . ' ' . escapeshellarg($this->jsDir),
+			' --format=json' . $config . ' ' . escapeshellarg($this->jsDir),
 			$output
 		);
-		$text = implode(PHP_EOL, $output);
-		$data = self::getJson($text);
+		$data = self::getJson($output);
 		if (!is_array($data)) {
-			$this->lastErrors = $text;
+			$this->lastErrors = $output;
 			return null;
 		}
 		$result = [];
@@ -438,16 +508,15 @@ class App
 		}
 		$config = $this->styleLintConfig !== self::DEFAULT_STYLELINT_CONFIG ?
 			('--config ' . escapeshellarg($this->styleLintConfig)) : '';
-		exec(
+		$this->execCommand(
 			$jsRuntime . ' ' . escapeshellarg($this->binStyleLint) .
 			' --formatter=json ' . $config . ' ' . escapeshellarg($this->styleLintFiles) .
 			' 2>&1',
 			$output
 		);
-		$text = implode(PHP_EOL, $output);
-		$data = self::getJson($text);
+		$data = self::getJson($output);
 		if (!is_array($data)) {
-			$this->lastErrors = $text;
+			$this->lastErrors = $output;
 			return null;
 		}
 		$result = [];
@@ -553,6 +622,16 @@ class App
 							break;
 						case 'phpcs-standard':
 							$this->phpCsStandard = trim($value);
+							break;
+
+						// ECS (Easy Coding Standard)
+						case 'ecs':
+							if ($value === false) {
+								$this->runEcs = false;
+							}
+							break;
+						case 'ecs-config':
+							$this->ecsConfig = trim($value);
 							break;
 
 						// Bun
@@ -723,6 +802,17 @@ class App
 			return mb_substr($path, mb_strlen($dir));
 		}
 		return $path;
+	}
+
+	/**
+	 * Выполнить команду, вернуть код выхода и установить выходную строку `$output`
+	 */
+	private function execCommand(string $command, ?string &$output = null): int
+	{
+		$this->stdErrPrintLine('Executing command: ' . $command, 2);
+		exec($command, $result, $code);
+		$output = implode(PHP_EOL, $result);
+		return $code;
 	}
 
 	/**
