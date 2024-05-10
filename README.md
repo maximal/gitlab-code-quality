@@ -59,6 +59,17 @@ code_quality:
 ```
 
 
+### Strict Mode
+By default, the tool returns non-zero exit code (7) only if critical errors are found. For example, on PHP syntax parsing errors (the code cannot be executed at all). This is considered a non-strict behavior.
+
+Although, you can harden issue handling and have non-zero exit code (8) if any issues are found:
+```shell
+./vendor/bin/gitlab-code-quality --strict > gl-code-quality-report.json
+```
+
+In strict mode, code quality stage will fail CI/CD pipeline even on minor issues.
+
+
 ## Configuration
 Code quality tools are detected automatically and run with their default config files.
 You can override this behavior in `extra` section of your project’s `composer.json` file:
@@ -81,6 +92,10 @@ You can override this behavior in `extra` section of your project’s `composer.
 			"last": false,
 			// Run Psalm and PHP CodeSniffer with `--no-cache` and ECX with `--clear-cache`
 			"cache": false,
+			// Strict mode:
+			// `false` to return non-zero exit code only if critical errors are found (for example, PHP parsing errors)
+			// `true` to return non-zero exit code if any issues are found
+			"strict": false,
 
 			// Run Psalm if it exists in `vendor/bin`
 			"psalm": true,
@@ -168,6 +183,10 @@ In an ordinary [Laravel](https://laravel.com/) project this tool runs in zero-co
 	// ... ... ...
 }
 ```
+
+
+## Coding Style
+PER-2T / PSR-12T (PHP’s standard [PER-2](https://www.php-fig.org/per/coding-style/) / [PSR-12](https://www.php-fig.org/psr/psr-12/) with [SmartTabs](https://www.emacswiki.org/emacs/SmartTabs) instead of spaces).
 
 
 ## Author

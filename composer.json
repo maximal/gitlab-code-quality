@@ -42,6 +42,7 @@
 			"stats": true,
 			"last": false,
 			"cache": false,
+			"strict": false,
 			"psalm": true,
 			"psalm-config": "psalm.xml",
 			"phpstan": true,

@@ -3,7 +3,7 @@
 /**
  * GitLab Code Quality generator for PHP and JS projects.
  *
- * Code style: PSR-12T (PSR12 with SmartTabs).
+ * Code style: PER-2T / PSR-12T (PHP’s standard PER-2 / PSR-12 with SmartTabs instead of spaces).
  *
  * Written in pure PHP (8.0+) without any framework or library dependencies.
  *
@@ -11,6 +11,7 @@
  * @link https://maximals.ru/
  * @link https://sijeko.ru/
  *
+ * @since 2024-05-10 Strict mode to return non-zero exit code if issues are found
  * @since 2024-04-25 ECS (Easy Coding Standard) support
  * @since 2024-04-18 Bun JS runtime support
  * @since 2023-03-19
@@ -27,7 +28,7 @@ use Throwable;
 class App
 {
 	// Project version
-	public const VERSION = '1.5';
+	public const VERSION = '1.6';
 
 	// Config variables
 	private string $phpDir = '.';
@@ -48,6 +49,7 @@ class App
 	private bool $printLast = false;
 	private bool $silent = false;
 	private bool $cache = false;
+	private bool $strict = false;
 
 	private bool $runPsalm = true;
 	private bool $runPhpStan = true;
@@ -91,6 +93,7 @@ class App
 	private const SEVERITY_CRITICAL = 'critical';
 
 	// Result codes
+	private const RESULT_OK = 0;
 	private const RESULT_PSALM_FAILED = 1;
 	private const RESULT_PHPSTAN_FAILED = 2;
 	private const RESULT_PHPCS_FAILED = 3;
@@ -98,6 +101,7 @@ class App
 	private const RESULT_ESLINT_FAILED = 5;
 	private const RESULT_STYLELINT_FAILED = 6;
 	private const RESULT_CRITICAL_ISSUES = 7;
+	private const RESULT_ISSUES_WITH_STRICT_MODE = 8;
 
 	// Default config files
 	private const DEFAULT_PSALM_CONFIG = 'psalm.xml';
@@ -132,6 +136,7 @@ class App
 
 	private function processArgumentsAndConfigs(): ?int
 	{
+		$rewriteProperties = [];
 		foreach ($this->argv as $index => $argument) {
 			if ($index === 0) {
 				$this->selfBin = $argument;
@@ -149,15 +154,32 @@ class App
 				case '--verbose':
 				case '-vv':
 					$this->verbosity = 2;
+					$rewriteProperties['verbosity'] = 2;
 					break;
 
 				case '-vvv':
 					$this->verbosity = 3;
+					$rewriteProperties['verbosity'] = 3;
+					break;
+
+				case '-vvvv':
+					$this->verbosity = 4;
+					$rewriteProperties['verbosity'] = 4;
+					break;
+
+				case '-s':
+				case '--strict':
+					$this->strict = true;
+					$rewriteProperties['strict'] = true;
 					break;
 			}
 		}
 		$this->processComposerConfig();
 		$this->processJsConfig();
+		// Rewrite properties, so that arguments take precedence over configs
+		foreach ($rewriteProperties as $property => $value) {
+			$this->$property = $value;
+		}
 		return null;
 	}
 
@@ -178,6 +200,7 @@ class App
 		echo 'Options:', PHP_EOL;
 		echo '    -h   --help       Print help.', PHP_EOL;
 		echo '    -v   --version    Print version.', PHP_EOL;
+		echo '    -s   --strict     Return non-zero exit code if issues are found.', PHP_EOL;
 		echo '    -vv  --verbose    Increase output verbosity.', PHP_EOL;
 		echo PHP_EOL;
 		echo 'More information:', PHP_EOL;
@@ -256,7 +279,7 @@ class App
 		$ecs = $this->runEcs();
 		if ($this->lastErrors !== null) {
 			$this->stdErrPrintLine($this->lastErrors);
-			$this->stdErrPrintLine('Error running ECS. See errors above.');
+			$this->stdErrPrintLine('Error running ESC. See errors above.');
 			return self::RESULT_ECS_FAILED;
 		}
 		array_push($issues, ...$ecs);
@@ -408,7 +431,7 @@ class App
 		if (!$this->runEcs || !$this->hasEcs) {
 			return [];
 		}
-		$this->stdErrPrintLine('Running ECS (Easy Coding Standard)...');
+		$this->stdErrPrintLine('Running ESC (Easy Coding Standard)...');
 		$config = $this->ecsConfig !== self::DEFAULT_ECS_CONFIG ?
 			('--config=' . escapeshellarg($this->ecsConfig)) : '';
 		$dir = !in_array($this->phpDir, ['', '.']) ? escapeshellarg($this->phpDir) : '';
@@ -442,7 +465,7 @@ class App
 					$result[] = $this->makeIssue(
 						$file,
 						$line,
-						'ECS: ' . $rule,
+						'ESC: ' . $rule,
 						self::SEVERITY_MINOR,
 						'Ecs.' . $rule,
 					);
@@ -581,7 +604,10 @@ class App
 			$this->stdErrPrintLine('Total issues: ' . count($issues) . ' (' . $critical . ' critical)');
 		}
 
-		return $critical > 0 ? self::RESULT_CRITICAL_ISSUES : 0;
+		if ($this->strict) {
+			return count($issues) > 0 ? self::RESULT_ISSUES_WITH_STRICT_MODE : self::RESULT_OK;
+		}
+		return $critical > 0 ? self::RESULT_CRITICAL_ISSUES : self::RESULT_OK;
 	}
 
 	private function processComposerConfig(): void
@@ -685,6 +711,9 @@ class App
 							break;
 						case 'cache':
 							$this->cache = (bool)$value;
+							break;
+						case 'strict':
+							$this->strict = (bool)$value;
 							break;
 					}
 				}
