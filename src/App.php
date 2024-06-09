@@ -1,5 +1,4 @@
 <?php
-
 /**
  * GitLab Code Quality generator for PHP and JS projects.
  *
@@ -11,6 +10,8 @@
  * @link https://maximals.ru/
  * @link https://sijeko.ru/
  *
+ * @since 2024-06-09 Print issue location in statistics table if the issue is the only one of its class
+ * @since 2024-06-08 PHPStan issue classes support
  * @since 2024-05-10 Strict mode to return non-zero exit code if issues are found
  * @since 2024-04-25 ECS (Easy Coding Standard) support
  * @since 2024-04-18 Bun JS runtime support
@@ -28,7 +29,7 @@ use Throwable;
 class App
 {
 	// Project version
-	public const VERSION = '1.6';
+	public const VERSION = '1.7';
 
 	// Config variables
 	private string $phpDir = '.';
@@ -46,7 +47,7 @@ class App
 	private string $styleLintConfig = self::DEFAULT_STYLELINT_CONFIG;
 
 	private bool $printStats = true;
-	private bool $printLast = false;
+	private int $printLast = self::PRINT_LAST_SINGLE;
 	private bool $silent = false;
 	private bool $cache = false;
 	private bool $strict = false;
@@ -91,6 +92,11 @@ class App
 	private const SEVERITY_MINOR = 'minor';
 	private const SEVERITY_MAJOR = 'major';
 	private const SEVERITY_CRITICAL = 'critical';
+
+	// printLast values
+	private const PRINT_LAST_NO = 0;
+	private const PRINT_LAST_YES = 1;
+	private const PRINT_LAST_SINGLE = 2;
 
 	// Result codes
 	private const RESULT_OK = 0;
@@ -205,13 +211,13 @@ class App
 		echo PHP_EOL;
 		echo 'More information:', PHP_EOL;
 		echo '    https://github.com/maximal/gitlab-code-quality', PHP_EOL;
-		return 0;
+		return self::RESULT_OK;
 	}
 
 	private function printVersion(): int
 	{
 		echo 'v' . self::VERSION, PHP_EOL;
-		return 0;
+		return self::RESULT_OK;
 	}
 
 	private function detectTools(): void
@@ -381,7 +387,9 @@ class App
 				$result[] = $this->makeIssue(
 					$fileName,
 					$issue->line,
-					'PHPStan: ' . $issue->message
+					'PHPStan: ' . $issue->message,
+					($issue->ignorable ?? false) ? self::SEVERITY_MINOR : self::SEVERITY_MAJOR,
+					isset($issue->identifier) ? ('PhpStan.' . $issue->identifier) : ''
 				);
 			}
 		}
@@ -587,8 +595,11 @@ class App
 				$this->stdErrPrintLine("\tRNK\tCNT\tTYPE\t");
 				$rank = 1;
 				foreach ($types as $type => $count) {
-					$this->stdErrPrintLine("\t#" . ($rank++) . "\t" . $count . "\t" . $type);
-					if ($this->printLast) {
+					$line = "\t#" . ($rank++) . "\t" . $count . "\t" . $type;
+					if (
+						$this->printLast === self::PRINT_LAST_YES ||
+						($this->printLast === self::PRINT_LAST_SINGLE && $count === 1)
+					) {
 						$lastIssue = $lastIssues[$type]['location'];
 						$position = [$lastIssue['full_path']];
 						if (isset($lastIssue['positions']['begin']['line'])) {
@@ -597,8 +608,9 @@ class App
 						if (isset($lastIssue['positions']['begin']['column'])) {
 							$position[] = $lastIssue['positions']['begin']['column'];
 						}
-						$this->stdErrPrintLine("\t\t\t" . 'Last: ' . implode(':', $position));
+						$line .= "\t" . 'Last: ' . implode(':', $position);
 					}
+					$this->stdErrPrintLine($line);
 				}
 			}
 			$this->stdErrPrintLine('Total issues: ' . count($issues) . ' (' . $critical . ' critical)');
@@ -704,7 +716,7 @@ class App
 							$this->printStats = (bool)$value;
 							break;
 						case 'last':
-							$this->printLast = (bool)$value;
+							$this->printLast = $this->parsePrintLast($value);
 							break;
 						case 'silent':
 							$this->silent = (bool)$value;
@@ -831,6 +843,18 @@ class App
 			return mb_substr($path, mb_strlen($dir));
 		}
 		return $path;
+	}
+
+	/**
+	 * Разобрать значение `printLast` из конфигурации
+	 */
+	private function parsePrintLast(mixed $value): int
+	{
+		return match (is_string($value) ? strtolower($value) : $value) {
+			0, false, 'no', 'false' => self::PRINT_LAST_NO,
+			1, true, 'yes', 'true' => self::PRINT_LAST_YES,
+			default => self::PRINT_LAST_SINGLE,
+		};
 	}
 
 	/**
