@@ -502,6 +502,14 @@ class App
 			' --format=json' . $config . ' ' . escapeshellarg($this->jsDir),
 			$output
 		);
+		// Sometimes ESLint outputs malformed UTF-8 JSON, due to source code printing
+		// Cut `"source"`s off before decoding JSON
+		// See: https://github.com/maximal/gitlab-code-quality/issues/7
+		$output = preg_replace(
+			'/"source":".+?","usedDeprecatedRules":/',
+			'"usedDeprecatedRules":',
+			$output
+		);
 		$data = self::getJson($output);
 		if (!is_array($data)) {
 			$this->lastErrors = $output;
