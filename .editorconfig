@@ -10,15 +10,26 @@ insert_final_newline = true
 trim_trailing_whitespace = true
 max_line_length = 100
 
-# For JetBrains IDEs
+# For JetBrains IDEs: https://www.jetbrains.com/help/idea/editorconfig.html
 ij_smart_tabs = true
 ij_continuation_indent_size = 4
 ij_visual_guides = 80, 100, 108, 120, 140, 160
 ij_wrap_on_typing = false
+# Any language
+ij_any_keep_indents_on_empty_lines = false
+ij_any_keep_simple_blocks_in_one_line = false
+# Always use brace blocks
+ij_any_if_brace_force = always
+ij_any_for_brace_force = always
+ij_any_while_brace_force = always
+ij_any_do_while_brace_force = always
 
-[*.md]
+[{*.markdown,*.md}]
 trim_trailing_whitespace = false
 
-[*.{yml,yaml}]
+[{*.yaml,*.yml}]
 indent_style = space
 indent_size = 2
+
+[*.vue]
+ij_vue_indent_children_of_top_level = template
