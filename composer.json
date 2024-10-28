@@ -20,9 +20,10 @@
 		}
 	],
 	"require": {
-		"php": ">=8.0",
+		"php": "^8.0|^8.1|^8.2|^8.3|^8.4",
 		"ext-json": "*",
-		"ext-mbstring": "*"
+		"ext-mbstring": "*",
+		"ext-simplexml": "*"
 	},
 	"require-dev": {},
 	"minimum-stability": "stable",
@@ -57,7 +58,15 @@
 			"eslint-config": ".eslintrc.yml",
 			"stylelint": true,
 			"stylelint-config": ".stylelintrc.yml",
-			"stylelint-files": "resources/**/*.{css,scss,sass,vue}"
+			"stylelint-files": "resources/**/*.{css,scss,sass,vue}",
+			"biome": true,
+			"biome-config": "biome.jsonc"
 		}
+	},
+	"config": {
+		"optimize-autoloader": true,
+		"classmap-authoritative": true,
+		"preferred-install": "dist",
+		"sort-packages": true
 	}
 }

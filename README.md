@@ -7,6 +7,7 @@ This program generates [Code Climate](https://github.com/codeclimate/platform/bl
 * [ECS](https://github.com/easy-coding-standard/easy-coding-standard)
 * [ESLint](https://eslint.org/)
 * [StyleLint](https://stylelint.io/)
+* [Biome](https://biomejs.dev/)
 
 They are automatically detected in the following paths:
 * `vendor/bin/psalm`
@@ -15,8 +16,9 @@ They are automatically detected in the following paths:
 * `vendor/bin/ecs`
 * `node_modules/eslint/bin/eslint.js`
 * `node_modules/stylelint/bin/stylelint.mjs`
+* `node_modules/@biomejs/biome/bin/biome`
 
-Two JS runtimes supported (to run ESLint and StyleLint checks):
+Two JS runtimes supported (to run Biome, ESLint, and StyleLint checks):
 * [Bun](https://bun.sh/) (preferred over Node);
 * [Node](https://nodejs.org/en) (used if no Bun executable found).
 
@@ -60,9 +62,9 @@ code_quality:
 
 
 ### Strict Mode
-By default, the tool returns non-zero exit code (7) only if critical errors are found. For example, on PHP syntax parsing errors (the code cannot be executed at all). This is considered a non-strict behavior.
+By default, the tool returns non-zero exit code (1) only if critical errors are found. For example, on PHP syntax parsing errors (the code cannot be executed at all). This is considered a non-strict behavior.
 
-Although, you can harden issue handling and have non-zero exit code (8) if any issues are found:
+Although, you can harden issue handling and have non-zero exit code (2) if any issues are found:
 ```shell
 ./vendor/bin/gitlab-code-quality --strict > gl-code-quality-report.json
 ```
@@ -135,7 +137,12 @@ You can override this behavior in `extra` section of your project’s `composer.
 			// StyleLint config file
 			"stylelint-config": ".stylelintrc.yml",
 			// Files to check glob pattern for StyleLint
-			"stylelint-files": "resources/**/*.{css,scss,sass,vue}"
+			"stylelint-files": "resources/**/*.{css,scss,sass,vue}",
+
+			// Run Biome if it exists in `node_modules/@biomejs/biome/bin/biome`
+			"biome": true,
+			// Biome config file
+			"biome-config": "biome.jsonc"
 		}
 	},
 	// ... ... ...

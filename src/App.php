@@ -10,6 +10,7 @@
  * @link https://maximals.ru/
  * @link https://sijeko.ru/
  *
+ * @since 2024-10-28 Biome support
  * @since 2024-06-09 Print issue location in statistics table if the issue is the only one of its class
  * @since 2024-06-08 PHPStan issue classes support
  * @since 2024-05-10 Strict mode to return non-zero exit code if issues are found
@@ -29,7 +30,7 @@ use Throwable;
 class App
 {
 	// Project version
-	public const VERSION = '1.7';
+	public const VERSION = '1.8';
 
 	// Config variables
 	private string $phpDir = '.';
@@ -45,6 +46,7 @@ class App
 	private string $ecsConfig = self::DEFAULT_ECS_CONFIG;
 	private string $esLintConfig = self::DEFAULT_ESLINT_CONFIG;
 	private string $styleLintConfig = self::DEFAULT_STYLELINT_CONFIG;
+	private string $biomeConfig = self::DEFAULT_BIOME_CONFIG;
 
 	private bool $printStats = true;
 	private int $printLast = self::PRINT_LAST_SINGLE;
@@ -56,8 +58,10 @@ class App
 	private bool $runPhpStan = true;
 	private bool $runPhpCs = true;
 	private bool $runEcs = true;
+
 	private bool $runEsLint = true;
 	private bool $runStyleLint = true;
+	private bool $runBiome = true;
 
 	// Runtime variables
 	private array $argv;
@@ -76,6 +80,7 @@ class App
 	private bool $hasNode = false;
 	private bool $hasEsLint = false;
 	private bool $hasStyleLint = false;
+	private bool $hasBiome = false;
 
 	private string $binPsalm;
 	private string $binPhpStan;
@@ -83,12 +88,14 @@ class App
 	private string $binEcs;
 	private string $binEsLint;
 	private string $binStyleLint;
+	private string $binBiome;
 
 	private ?string $lastErrors = null;
 
 	private int $verbosity = 1;
 
 	// Severities
+	private const SEVERITY_INFO = 'info';
 	private const SEVERITY_MINOR = 'minor';
 	private const SEVERITY_MAJOR = 'major';
 	private const SEVERITY_CRITICAL = 'critical';
@@ -100,14 +107,15 @@ class App
 
 	// Result codes
 	private const RESULT_OK = 0;
-	private const RESULT_PSALM_FAILED = 1;
-	private const RESULT_PHPSTAN_FAILED = 2;
-	private const RESULT_PHPCS_FAILED = 3;
-	private const RESULT_ECS_FAILED = 4;
-	private const RESULT_ESLINT_FAILED = 5;
-	private const RESULT_STYLELINT_FAILED = 6;
-	private const RESULT_CRITICAL_ISSUES = 7;
-	private const RESULT_ISSUES_WITH_STRICT_MODE = 8;
+	private const RESULT_CRITICAL_ISSUES = 1;
+	private const RESULT_ISSUES_WITH_STRICT_MODE = 2;
+	private const RESULT_PSALM_FAILED = 3;
+	private const RESULT_PHPSTAN_FAILED = 4;
+	private const RESULT_PHPCS_FAILED = 5;
+	private const RESULT_ECS_FAILED = 6;
+	private const RESULT_ESLINT_FAILED = 7;
+	private const RESULT_STYLELINT_FAILED = 8;
+	private const RESULT_BIOME_FAILED = 9;
 
 	// Default config files
 	private const DEFAULT_PSALM_CONFIG = 'psalm.xml';
@@ -116,6 +124,7 @@ class App
 	private const DEFAULT_ECS_CONFIG = 'ecs.php';
 	private const DEFAULT_ESLINT_CONFIG = '.eslintrc.yml';
 	private const DEFAULT_STYLELINT_CONFIG = '.stylelintrc.yml';
+	private const DEFAULT_BIOME_CONFIG = 'biome.jsonc';
 
 
 	public function __construct(array $argv, string $binDir)
@@ -231,6 +240,7 @@ class App
 		$this->binEcs = realpath($binDir . 'ecs');
 		$this->binEsLint = realpath($this->currentDir . '/node_modules/eslint/bin/eslint.js');
 		$this->binStyleLint = realpath($this->currentDir . '/node_modules/stylelint/bin/stylelint.mjs');
+		$this->binBiome = realpath($this->currentDir . '/node_modules/@biomejs/biome/bin/biome');
 
 		$this->hasPsalm = is_file($this->binPsalm);
 		$this->hasPhpStan = is_file($this->binPhpStan);
@@ -238,6 +248,7 @@ class App
 		$this->hasEcs = is_file($this->binEcs);
 		$this->hasEsLint = is_file($this->binEsLint);
 		$this->hasStyleLint = is_file($this->binStyleLint);
+		$this->hasBiome = is_file($this->binBiome);
 
 		// Detect JS runtime
 		exec($this->bunBin . ' --version 2>&1', $output, $code);
@@ -316,6 +327,14 @@ class App
 			chdir($this->currentDir);
 		}
 
+		$biome = $this->runBiome();
+		if ($this->lastErrors !== null) {
+			$this->stdErrPrintLine($this->lastErrors);
+			$this->stdErrPrintLine('Error running Biome. See errors above.');
+			return self::RESULT_BIOME_FAILED;
+		}
+		array_push($issues, ...$biome);
+
 		return $this->getStats($issues);
 	}
 
@@ -334,7 +353,20 @@ class App
 			' --memory-limit=-1 --output-format=json ' . $config . ' ' . $dir,
 			$output
 		);
-		$data = self::getJson($output);
+		// Fixes for invalid Psalm’s JSON output
+		$fixedOutput = [];
+		$header = true;
+		foreach (explode(PHP_EOL, $output) as $line) {
+			if (!$header) {
+				$fixedOutput[] = $line;
+				continue;
+			}
+			if (str_starts_with($line, '[')) {
+				$fixedOutput[] = $line;
+				$header = false;
+			}
+		}
+		$data = self::getJson(implode(PHP_EOL, $fixedOutput));
 		if (!is_array($data)) {
 			$this->lastErrors = $output;
 			return null;
@@ -576,6 +608,95 @@ class App
 		return $result;
 	}
 
+	private function runBiome(): ?array
+	{
+		$this->lastErrors = null;
+		if (!$this->runBiome || !$this->hasBiome) {
+			return [];
+		}
+		$this->stdErrPrintLine('Running Biome...');
+		$jsRuntime = $this->getJsRuntime();
+		if ($jsRuntime === null) {
+			$this->lastErrors = 'No JS runtime found: no Bun, no Node';
+			return null;
+		}
+		$config = $this->biomeConfig !== self::DEFAULT_BIOME_CONFIG ?
+			('--config-path=' . escapeshellarg($this->biomeConfig)) : '';
+
+		// region GitHub reporter: precise issue location, but returns not all the issues
+		//*
+		// https://biomejs.dev/reference/reporters/#github
+		$this->execCommand(
+			$jsRuntime . ' ' .
+			escapeshellarg($this->binBiome) .
+			' check --max-diagnostics=65535 --files-max-size=' . (16 * 1024 * 1024) .
+			' --reporter=github ' . $config,
+			$output
+		);
+		$result = [];
+		$lines = preg_split('/(\r\n|\r|\n)/', $output, -1, PREG_SPLIT_NO_EMPTY);
+		foreach ($lines as $line) {
+			$line = trim($line);
+			if (
+				!preg_match(
+					'/^::(\S+)\s+title=([^,]+),file=([^,]+),line=(\d+),endLine=(\d+),col=(\d+),endColumn=(\d+)::(.+)$/',
+					$line,
+					$match
+				)
+			) {
+				continue;
+			}
+			$result[] = $this->makeIssue(
+				self::deEscapeGithubReportProperty($match[3]),
+				(int)$match[4],
+				'Biome: ' . self::deEscapeGithubReportData($match[8]),
+				$match[1],
+				'Biome.' . self::deEscapeGithubReportProperty($match[2]),
+				(int)$match[6],
+				(int)$match[5],
+				(int)$match[7]
+			);
+		}
+		return $result;
+		/**/
+		// endregion GitHub reporter: precise issue location, but returns not all the issues
+
+
+		// region JSON reporter: need to calculate issue location, but returns all the issues
+		/*
+		// https://biomejs.dev/reference/reporters/#json
+		$this->execCommand(
+			$jsRuntime . ' ' .
+			escapeshellarg($this->binBiome) .
+			' check --max-diagnostics=65535 --files-max-size=' . (16 * 1024 * 1024) .
+			' --reporter=json ' . $config,
+			$output
+		);
+		$data = self::getJson($output);
+		if (!is_object($data) || !is_object($data->summary) || !is_array($data->diagnostics)) {
+			$this->lastErrors = $output;
+			return null;
+		}
+		$result = [];
+		foreach ($data->diagnostics as $issue) {
+			$where = $issue->location;
+			$location = $this->calcLocationFromSpan($where->sourceCode, $where->span);
+			$result[] = $this->makeIssue(
+				$where->path->file,
+				$location['startLine'],
+				'Biome: ' . $issue->description,
+				$issue->severity,
+				'Biome.' . $issue->category,
+				$location['startColumn'],
+				$location['endLine'],
+				$location['endColumn']
+			);
+		}
+		return $result;
+		/**/
+		// endregion JSON reporter: need to calculate issue location, but returns all the issues
+	}
+
 	private function getStats(array $issues): int
 	{
 		if (!$this->silent) {
@@ -713,6 +834,16 @@ class App
 							$this->styleLintFiles = trim($value);
 							break;
 
+						// Biome
+						case 'biome':
+							if ($value === false) {
+								$this->runBiome = false;
+							}
+							break;
+						case 'biome-config':
+							$this->biomeConfig = trim($value);
+							break;
+
 						// Other
 						case 'php-dir':
 							$this->phpDir = trim($value);
@@ -780,7 +911,13 @@ class App
 	): array
 	{
 		$relativePath = $this->relativePath($path);
-		if ($severity === 1 || strtolower($severity) === 'warning') {
+		if (
+			$severity === 0 ||
+			strtolower($severity) === 'info' ||
+			strtolower($severity) === 'notice'
+		) {
+			$severity = self::SEVERITY_INFO;
+		} elseif ($severity === 1 || strtolower($severity) === 'warning') {
 			$severity = self::SEVERITY_MINOR;
 		} elseif ($severity === 2 || strtolower($severity) === 'error') {
 			$severity = self::SEVERITY_MAJOR;
@@ -851,6 +988,75 @@ class App
 			return mb_substr($path, mb_strlen($dir));
 		}
 		return $path;
+	}
+
+	/**
+	 * https://github.com/actions/toolkit/blob/fe3e7ce9a7f995d29d1fcfd226a32bca407f9dc8/packages/core/src/command.ts#L80-L85
+	 */
+	private static function deEscapeGithubReportData(string $data): string
+	{
+		return str_replace(['%0D', '%0A', '%25'], ["\r", "\n", '%'], $data);
+	}
+
+	/**
+	 * https://github.com/actions/toolkit/blob/fe3e7ce9a7f995d29d1fcfd226a32bca407f9dc8/packages/core/src/command.ts#L87-L94
+	 */
+	private static function deEscapeGithubReportProperty(string $property): string
+	{
+		return str_replace(['%0D', '%0A', '%3A', '%2C', '%25'], ["\r", "\n", ':', ',', '%'], $property);
+	}
+
+	/**
+	 * Calculate location from byte offsets inside source code. The complexity is O(n).
+	 *
+	 * @param ?string $source Source code
+	 * @param ?array{0: int<0,max>, 1: int<0,max>} $span Array with from and to byte offsets
+	 * @return array{startLine: int<1,max>, startColumn: int<-1,max>, endLine: int<-1,max>, endColumn: int<-1,max>}
+	 */
+	private function calcLocationFromSpan(?string $source, ?array $span): array
+	{
+		if ($source === null || $span === null) {
+			return [
+				'startLine' => 1,
+				'startColumn' => -1,
+				'endLine' => -1,
+				'endColumn' => -1,
+			];
+		}
+		$from = min($span[0], $span[1]);
+		$to = max($span[0], $span[1]);
+		$currentLine = 1;
+		$startLine = $currentLine;
+		for ($i = 0; $i < $to; $i++) {
+			$byte = $source[$i];
+			if ($byte === "\r") {
+				$nextByte = $source[$i + 1] ?? null;
+				if ($nextByte === "\n") {
+					// CRLF, skip to the next byte
+					continue;
+				}
+				// CR only
+				$currentLine++;
+				if ($i <= $from) {
+					$startLine++;
+				}
+			} elseif ($byte === "\n") {
+				if ($from === 80 && $to === 83) {
+					echo 'GOT LF', PHP_EOL;
+				}
+				// LF or CRLF
+				$currentLine++;
+				if ($i <= $from) {
+					$startLine++;
+				}
+			}
+		}
+		return [
+			'startLine' => $startLine,
+			'startColumn' => -1,
+			'endLine' => $currentLine,
+			'endColumn' => -1,
+		];
 	}
 
 	/**
