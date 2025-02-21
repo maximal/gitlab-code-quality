@@ -30,7 +30,7 @@ use Throwable;
 class App
 {
 	// Project version
-	public const VERSION = '1.8';
+	public const VERSION = '1.9';
 
 	// Config variables
 	private string $phpDir = '.';
@@ -581,7 +581,8 @@ class App
 			('--config ' . escapeshellarg($this->styleLintConfig)) : '';
 		$this->execCommand(
 			$jsRuntime . ' ' . escapeshellarg($this->binStyleLint) .
-			' --formatter=json ' . $config . ' ' . escapeshellarg($this->styleLintFiles) .
+			' --formatter=json ' . $config . ' --quiet-deprecation-warnings ' .
+			escapeshellarg($this->styleLintFiles) .
 			' 2>&1',
 			$output
 		);
