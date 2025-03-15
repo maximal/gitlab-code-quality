@@ -471,7 +471,7 @@ class App
 		if (!$this->runEcs || !$this->hasEcs) {
 			return [];
 		}
-		$this->stdErrPrintLine('Running ESC (Easy Coding Standard)...');
+		$this->stdErrPrintLine('Running ECS (Easy Coding Standard)...');
 		$config = $this->ecsConfig !== self::DEFAULT_ECS_CONFIG ?
 			('--config=' . escapeshellarg($this->ecsConfig)) : '';
 		$dir = !in_array($this->phpDir, ['', '.']) ? escapeshellarg($this->phpDir) : '';
@@ -505,7 +505,7 @@ class App
 					$result[] = $this->makeIssue(
 						$file,
 						$line,
-						'ESC: ' . $rule,
+						'ECS: ' . $rule,
 						self::SEVERITY_MINOR,
 						'Ecs.' . $rule,
 					);
