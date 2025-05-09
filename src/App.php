@@ -39,6 +39,7 @@ class App
 	private string $bunBin = 'bun';
 	private string $nodeBin = 'node';
 	private string $styleLintFiles = 'resources/**/*.{css,scss,sass,vue}';
+	private string $phpCsIgnore = '';
 
 	private string $psalmConfig = self::DEFAULT_PSALM_CONFIG;
 	private string $phpStanConfig = self::DEFAULT_PHPSTAN_CONFIG;
@@ -441,6 +442,7 @@ class App
 		$this->execCommand(
 			$this->binPhpCs . ($this->cache ? '' : ' --no-cache') .
 			' --report=json --standard=' . escapeshellarg($this->phpCsStandard) .
+			( ! empty( $this->phpCsIgnore ) ? ' --ignore=' . escapeshellarg( $this->phpCsIgnore ) : '' ) .
 			' ' . escapeshellarg($this->phpDir),
 			$output
 		);
@@ -790,6 +792,11 @@ class App
 							break;
 						case 'phpcs-standard':
 							$this->phpCsStandard = trim($value);
+							break;
+						case 'phpcs-ignore':
+							$this->phpCsIgnore = is_array( $value) ?
+								implode(',', array_map('trim', $value)) :
+								trim($value);
 							break;
 
 						// ECS (Easy Coding Standard)
