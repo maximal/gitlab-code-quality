@@ -116,8 +116,8 @@ You can override this behavior in `extra` section of your project’s `composer.
 			"phpcs": true,
 			// PHP CodeSniffer standard (name or path to rules file)
 			"phpcs-standard": "PSR12",
-			// PHP CodeSniffer ignore paths (string or array, added after `--ignore=`)
-			"phpcs-ignore": '',
+			// PHP CodeSniffer ignore paths (string or array, will be added to `--ignore=` flag)
+			"phpcs-ignore": "",
 
 			// Run ECS (Easy Coding Standard) if it exists in `vendor/bin`
 			"ecs": true,

@@ -10,6 +10,7 @@
  * @link https://maximals.ru/
  * @link https://sijeko.ru/
  *
+ * @since 2025-07-20 PHP CodeSniffer `--ignore` support
  * @since 2024-10-28 Biome support
  * @since 2024-06-09 Print issue location in statistics table if the issue is the only one of its class
  * @since 2024-06-08 PHPStan issue classes support
@@ -27,7 +28,7 @@ use Throwable;
 /**
  * GitLab Code Quality generator for PHP and JS projects
  */
-class App
+final class App
 {
 	// Project version
 	public const VERSION = '1.9';
@@ -39,11 +40,11 @@ class App
 	private string $bunBin = 'bun';
 	private string $nodeBin = 'node';
 	private string $styleLintFiles = 'resources/**/*.{css,scss,sass,vue}';
-	private string $phpCsIgnore = '';
 
 	private string $psalmConfig = self::DEFAULT_PSALM_CONFIG;
 	private string $phpStanConfig = self::DEFAULT_PHPSTAN_CONFIG;
 	private string $phpCsStandard = self::DEFAULT_PHPCS_STANDARD;
+	private string $phpCsIgnore = '';
 	private string $ecsConfig = self::DEFAULT_ECS_CONFIG;
 	private string $esLintConfig = self::DEFAULT_ESLINT_CONFIG;
 	private string $styleLintConfig = self::DEFAULT_STYLELINT_CONFIG;
@@ -442,7 +443,7 @@ class App
 		$this->execCommand(
 			$this->binPhpCs . ($this->cache ? '' : ' --no-cache') .
 			' --report=json --standard=' . escapeshellarg($this->phpCsStandard) .
-			( ! empty( $this->phpCsIgnore ) ? ' --ignore=' . escapeshellarg( $this->phpCsIgnore ) : '' ) .
+			($this->phpCsIgnore !== '' ? ' --ignore=' . escapeshellarg($this->phpCsIgnore) : '') .
 			' ' . escapeshellarg($this->phpDir),
 			$output
 		);
@@ -794,9 +795,9 @@ class App
 							$this->phpCsStandard = trim($value);
 							break;
 						case 'phpcs-ignore':
-							$this->phpCsIgnore = is_array( $value) ?
-								implode(',', array_map('trim', $value)) :
-								trim($value);
+							$this->phpCsIgnore = is_array($value)
+								? implode(',', array_map('trim', $value))
+								: trim($value);
 							break;
 
 						// ECS (Easy Coding Standard)
