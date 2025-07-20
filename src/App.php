@@ -353,7 +353,7 @@ final class App
 		$this->execCommand(
 			$this->binPsalm . ($this->cache ? '' : ' --no-cache') .
 			' --memory-limit=-1 --output-format=json ' . $config . ' ' . $dir,
-			$output
+			$output,
 		);
 		// Fixes for invalid Psalm’s JSON output
 		$fixedOutput = [];
@@ -388,7 +388,7 @@ final class App
 				'Psalm.' . $issue->type,
 				$issue->column_from,
 				$issue->line_to,
-				$issue->column_to
+				$issue->column_to,
 			);
 		}
 		return $result;
@@ -408,7 +408,7 @@ final class App
 			$this->binPhpStan .
 			' analyse --memory-limit=-1 --no-interaction --error-format=json ' .
 			$config . ' ' . $dir,
-			$output
+			$output,
 		);
 		$data = self::getJson($output);
 		if (!is_object($data) || !isset($data->files)) {
@@ -423,7 +423,7 @@ final class App
 					$issue->line,
 					'PHPStan: ' . $issue->message,
 					($issue->ignorable ?? false) ? self::SEVERITY_MINOR : self::SEVERITY_MAJOR,
-					isset($issue->identifier) ? ('PhpStan.' . $issue->identifier) : ''
+					isset($issue->identifier) ? ('PhpStan.' . $issue->identifier) : '',
 				);
 			}
 		}
@@ -438,14 +438,14 @@ final class App
 		}
 		$this->stdErrPrintLine(
 			'Running PHP CodeSniffer with standard ' .
-			$this->phpCsStandard . '...'
+			$this->phpCsStandard . '...',
 		);
 		$this->execCommand(
 			$this->binPhpCs . ($this->cache ? '' : ' --no-cache') .
 			' --report=json --standard=' . escapeshellarg($this->phpCsStandard) .
 			($this->phpCsIgnore !== '' ? ' --ignore=' . escapeshellarg($this->phpCsIgnore) : '') .
 			' ' . escapeshellarg($this->phpDir),
-			$output
+			$output,
 		);
 		$data = self::getJson($output);
 		if (!is_object($data) || !is_object($data->files)) {
@@ -461,7 +461,7 @@ final class App
 					'PHP CS: ' . $issue->message,
 					$issue->type,
 					'PhpCs.' . $issue->source,
-					$issue->column
+					$issue->column,
 				);
 			}
 		}
@@ -481,7 +481,7 @@ final class App
 		$this->execCommand(
 			$this->binEcs . ($this->cache ? '' : ' --clear-cache') .
 			' --memory-limit=-1 --output-format=json ' . $config . ' ' . $dir,
-			$output
+			$output,
 		);
 		$data = self::getJson($output);
 		if (!is_object($data) || !is_object($data->files)) {
@@ -497,7 +497,7 @@ final class App
 					preg_match(
 						'/---\s*Original\n\+\+\+\s*New\n@@\s*-(\d+),\d+\s*\+\d+,\d+\s*@@/ui',
 						$diff->diff,
-						$match
+						$match,
 					)
 				) {
 					// Trying to guess the line number from the diff
@@ -535,7 +535,7 @@ final class App
 		$this->execCommand(
 			$jsRuntime . ' ' . escapeshellarg($this->binEsLint) .
 			' --format=json' . $config . ' ' . escapeshellarg($this->jsDir),
-			$output
+			$output,
 		);
 		// Sometimes ESLint outputs malformed UTF-8 JSON, due to source code printing
 		// Cut `"source"`s off before decoding JSON
@@ -543,7 +543,7 @@ final class App
 		$output = preg_replace(
 			'/"source":".+?","usedDeprecatedRules":/',
 			'"usedDeprecatedRules":',
-			$output
+			$output,
 		);
 		$data = self::getJson($output);
 		if (!is_array($data)) {
@@ -561,7 +561,7 @@ final class App
 					'EsLint.' . $issue->ruleId,
 					$issue->column ?? -1,
 					$issue->endLine ?? -1,
-					$issue->endColumn ?? -1
+					$issue->endColumn ?? -1,
 				);
 			}
 		}
@@ -587,7 +587,7 @@ final class App
 			' --formatter=json ' . $config . ' --quiet-deprecation-warnings ' .
 			escapeshellarg($this->styleLintFiles) .
 			' 2>&1',
-			$output
+			$output,
 		);
 		$data = self::getJson($output);
 		if (!is_array($data)) {
@@ -605,7 +605,7 @@ final class App
 					'StyleLint.' . $issue->rule,
 					$issue->column,
 					$issue->endLine,
-					$issue->endColumn
+					$issue->endColumn,
 				);
 			}
 		}
@@ -635,7 +635,7 @@ final class App
 			escapeshellarg($this->binBiome) .
 			' check --max-diagnostics=65535 --files-max-size=' . (16 * 1024 * 1024) .
 			' --reporter=github ' . $config,
-			$output
+			$output,
 		);
 		$result = [];
 		$lines = preg_split('/(\r\n|\r|\n)/', $output, -1, PREG_SPLIT_NO_EMPTY);
@@ -645,7 +645,7 @@ final class App
 				!preg_match(
 					'/^::(\S+)\s+title=([^,]+),file=([^,]+),line=(\d+),endLine=(\d+),col=(\d+),endColumn=(\d+)::(.+)$/',
 					$line,
-					$match
+					$match,
 				)
 			) {
 				continue;
@@ -658,7 +658,7 @@ final class App
 				'Biome.' . self::deEscapeGithubReportProperty($match[2]),
 				(int)$match[6],
 				(int)$match[5],
-				(int)$match[7]
+				(int)$match[7],
 			);
 		}
 		return $result;
@@ -674,7 +674,7 @@ final class App
 			escapeshellarg($this->binBiome) .
 			' check --max-diagnostics=65535 --files-max-size=' . (16 * 1024 * 1024) .
 			' --reporter=json ' . $config,
-			$output
+			$output,
 		);
 		$data = self::getJson($output);
 		if (!is_object($data) || !is_object($data->summary) || !is_array($data->diagnostics)) {
@@ -693,7 +693,7 @@ final class App
 				'Biome.' . $issue->category,
 				$location['startColumn'],
 				$location['endLine'],
-				$location['endColumn']
+				$location['endColumn'],
 			);
 		}
 		return $result;
@@ -909,16 +909,15 @@ final class App
 	 * @link https://github.com/codeclimate/platform/blob/master/spec/analyzers/SPEC.md#data-types
 	 */
 	private function makeIssue(
-		string     $path,
-		int        $startLine,
-		string     $description,
+		string $path,
+		int $startLine,
+		string $description,
 		string|int $severity = self::SEVERITY_MAJOR,
-		string     $class = '',
-		int        $startColumn = -1,
-		int        $endLine = -1,
-		int        $endColumn = -1
-	): array
-	{
+		string $class = '',
+		int $startColumn = -1,
+		int $endLine = -1,
+		int $endColumn = -1,
+	): array {
 		$relativePath = $this->relativePath($path);
 		if (
 			$severity === 0 ||
@@ -980,7 +979,10 @@ final class App
 				static function ($match) {
 					return str_replace('    ', "\t", $match[1]);
 				},
-				json_encode($value, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+				json_encode(
+					$value,
+					JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT,
+				),
 			);
 		} catch (Throwable) {
 		}
@@ -1012,7 +1014,11 @@ final class App
 	 */
 	private static function deEscapeGithubReportProperty(string $property): string
 	{
-		return str_replace(['%0D', '%0A', '%3A', '%2C', '%25'], ["\r", "\n", ':', ',', '%'], $property);
+		return str_replace(
+			['%0D', '%0A', '%3A', '%2C', '%25'],
+			["\r", "\n", ':', ',', '%'],
+			$property,
+		);
 	}
 
 	/**

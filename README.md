@@ -198,7 +198,7 @@ In an ordinary [Laravel](https://laravel.com/) project this tool runs in zero-co
 
 
 ## Coding Style
-PER-2T / PSR-12T (PHP’s standard [PER-2](https://www.php-fig.org/per/coding-style/) / [PSR-12](https://www.php-fig.org/psr/psr-12/) with [SmartTabs](https://www.emacswiki.org/emacs/SmartTabs) instead of spaces).
+[PER-3T](https://github.com/maximal/per-3t) / PSR-12T (PHP’s standard [PER-3](https://www.php-fig.org/per/coding-style/) / [PSR-12](https://www.php-fig.org/psr/psr-12/) with [SmartTabs](https://www.emacswiki.org/emacs/SmartTabs) instead of spaces).
 
 
 ## Author
