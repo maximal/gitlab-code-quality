@@ -10,6 +10,7 @@
  * @link https://maximals.ru/
  * @link https://sijeko.ru/
  *
+ * @since 2026-03-29 Support large tools’ outputs
  * @since 2025-07-20 PHP CodeSniffer `--ignore` support
  * @since 2024-10-28 Biome support
  * @since 2024-06-09 Print issue location in statistics table if the issue is the only one of its class
@@ -31,7 +32,7 @@ use Throwable;
 final class App
 {
 	// Project version
-	public const VERSION = '1.9';
+	public const VERSION = '1.11';
 
 	// Config variables
 	private string $phpDir = '.';
@@ -1089,12 +1090,22 @@ final class App
 	/**
 	 * Выполнить команду, вернуть код выхода и установить выходную строку `$output`
 	 */
-	private function execCommand(string $command, ?string &$output = null): int
+	private function execCommand(string $command, ?string &$output = null): false|int
 	{
 		$this->stdErrPrintLine('Executing command: ' . $command, 2);
-		exec($command, $result, $code);
-		$output = implode(PHP_EOL, $result);
-		return $code;
+		$descriptors = [
+			0 => ['pipe', 'r'], // STDIN
+			1 => ['pipe', 'w'], // STDOUT
+			//2 => ['pipe', 'w'], // STDERR (skip, to pass-through)
+		];
+		$process = proc_open($command, $descriptors, $pipes);
+		if (!is_resource($process)) {
+			return false;
+		}
+		fclose($pipes[0]);
+		$output = stream_get_contents($pipes[1]);
+		fclose($pipes[1]);
+		return proc_close($process);
 	}
 
 	/**
