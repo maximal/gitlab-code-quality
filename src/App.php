@@ -205,7 +205,7 @@ final class App
 	{
 		echo '    GitLab Code Quality Tool for PHP and JS    ', PHP_EOL;
 		echo '===============================================', PHP_EOL;
-		echo 'v', str_pad(self::VERSION, 17), '© MaximAL of Sijeko 2023—2024', PHP_EOL;
+		echo 'v', str_pad(self::VERSION, 17), '© MaximAL of Sijeko 2023—2026', PHP_EOL;
 		echo PHP_EOL;
 		echo 'Runs: Psalm, PHPStan, PHP CodeSniffer, ECS, ESLint, StyleLint.', PHP_EOL;
 		echo PHP_EOL;
@@ -299,7 +299,7 @@ final class App
 		$ecs = $this->runEcs();
 		if ($this->lastErrors !== null) {
 			$this->stdErrPrintLine($this->lastErrors);
-			$this->stdErrPrintLine('Error running ESC. See errors above.');
+			$this->stdErrPrintLine('Error running ECS. See errors above.');
 			return self::RESULT_ECS_FAILED;
 		}
 		array_push($issues, ...$ecs);
@@ -906,7 +906,7 @@ final class App
 	/**
 	 * Create an issue
 	 *
-	 * @link https://docs.gitlab.com/ee/ci/testing/code_quality.html#implement-a-custom-tool
+	 * @link https://docs.gitlab.com/ci/testing/code_quality/#implement-a-custom-tool
 	 * @link https://github.com/codeclimate/platform/blob/master/spec/analyzers/SPEC.md#data-types
 	 */
 	private function makeIssue(
